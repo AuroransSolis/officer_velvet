@@ -1,0 +1,6 @@
+[package]
+name = "aa_automod"
+version = "0.1.0"
+authors = ["Aurorans Solis <primalucegd@gmail.com>"]
+
+[dependencies]
