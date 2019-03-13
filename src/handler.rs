@@ -10,7 +10,8 @@ macro_rules! print_elapsed_and_return {
 pub struct Handler;
 
 impl EventHandler for Handler {
-    fn message(&self, _context: Context, _message: Message) {
+    fn message(&self, context: Context, _message: Message) {
+        let foo = context.data.try_lock().unwrap().get::<CachedPartialGuild>();
         println!("Begin handling message send.");
         let start = Instant::now();
         if let Ok(mut file) = File::open(COUNTER_FILE) {

@@ -47,7 +47,9 @@ fn main() {
     let _ = client.data.lock().insert::<CachedPartialGuild>(
         PartialGuild::get(GuildId(549382175703957504))
             .expect("Failed to get PartialGuild from GuildId(549382175703957504)"));
-
+    let partialguild = PartialGuild::get(GuildId(549382175703957504))
+        .expect("Failed to get PartialGuild from GuildId(549382175703957504)");
+    let foo = partialguild.member()
 }
 
 pub fn check_administrator(opt_member: Option<Member>) -> bool {
