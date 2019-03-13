@@ -1,6 +1,8 @@
 [package]
-name = "aa_automod"
+name = "officer_velvet"
 version = "0.1.0"
 authors = ["Aurorans Solis <primalucegd@gmail.com>"]
 
 [dependencies]
+serenity = "0.5.13"
+byteorder = "1.3.1"
