@@ -12,7 +12,7 @@ use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 
 use std::fs::{File, read_dir};
 use std::path::Path;
-use std::time::{Instant, Duration};
+use std::time::{Instant, Duration, SystemTime};
 use std::thread::{self, sleep};
 use std::env;
 
@@ -35,21 +35,27 @@ pub struct GulagEntry {
     member_name: String,
     user_id: UserId,
     previous_roles: Vec<RoleId>,
+    start_time: SystemTime,
     gulag_sentence: u64
 }
 
 fn main() {
+    // Pull bot token from environment (using env. var. so that I don't have to publish the code
+    // with an API token in it).
     let token = env::var("TESTING")
         .expect("Expected a token in the environment");
     println!("Retrieved bot token.");
+    // Create client with the handler that I've defined
     let mut client = Client::new(&token, Handler).expect("Err creating client");
     println!("Created client.");
+    // Cache a PartialGuild. Requesting one of these can be expensive and cause ratelimiting issues,
+    // so we'll just cache one at the start. Most of the things in it aren't useful, but I do need
+    // the PartialGuild itself for adding and removing roles.
     let _ = client.data.lock().insert::<CachedPartialGuild>(
         PartialGuild::get(GuildId(549382175703957504))
             .expect("Failed to get PartialGuild from GuildId(549382175703957504)"));
     let partialguild = PartialGuild::get(GuildId(549382175703957504))
         .expect("Failed to get PartialGuild from GuildId(549382175703957504)");
-    let foo = partialguild.member()
 }
 
 pub fn check_administrator(opt_member: Option<Member>) -> bool {
