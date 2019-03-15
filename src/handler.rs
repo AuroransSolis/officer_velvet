@@ -36,9 +36,11 @@ impl EventHandler for Handler {
                     }
                 }
             }
-            let num = file.read_u64::<LittleEndian>().expect("    Failed to read activity file.");
+            let offset = file.read_u64::<LittleEndian>()
+                .expect("    Failed to read offset from activity file.");
+            let count = file.read_u64::<LittleEndian>().expect("    Failed to read activity file.");
             let _  = File::create(COUNTER_FILE).expect("    Failed to clear counter file.");
-            let _ = file.write_u64::<LittleEndian>(num + 1)
+            let _ = file.write_u64::<LittleEndian>(count + 1)
                 .expect("    Failed to write new number to file.");
             println!("    Successfully handled message event.");
             println!("    Elapsed: {:?}", start.elapsed());
