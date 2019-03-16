@@ -3,7 +3,7 @@ extern crate byteorder;
 
 use serenity::{
     model::{id::{ChannelId, MessageId, UserId, GuildId, RoleId}, channel::{Message},
-        guild::{PartialGuild, Member}},
+        guild::{PartialGuild, Member, Role}, user::User},
     prelude::*,
     framework::standard::StandardFramework
 };
@@ -31,6 +31,12 @@ impl TypeMapKey for CachedPartialGuild {
     type Value = PartialGuild;
 }
 
+pub struct GulagRole;
+
+impl TypeMapKey for GulagRole {
+    type Value = Role;
+}
+
 pub struct GulagEntry {
     member_name: String,
     user_id: UserId,
@@ -51,11 +57,11 @@ fn main() {
     // Cache a PartialGuild. Requesting one of these can be expensive and cause ratelimiting issues,
     // so we'll just cache one at the start. Most of the things in it aren't useful, but I do need
     // the PartialGuild itself for adding and removing roles.
-    let _ = client.data.lock().insert::<CachedPartialGuild>(
-        PartialGuild::get(GuildId(549382175703957504))
-            .expect("Failed to get PartialGuild from GuildId(549382175703957504)"));
-    let partialguild = PartialGuild::get(GuildId(549382175703957504))
+    let partial_guild = PartialGuild::get(GuildId(549382175703957504))
         .expect("Failed to get PartialGuild from GuildId(549382175703957504)");
+    let _ = client.data.lock().insert::<GulagRole>(partial_guild.role_by_name("Prisoner")
+        .expect("Failed to get gulag role.").clone());
+    let _ = client.data.lock().insert::<CachedPartialGuild>(partial_guild);
 }
 
 pub fn check_administrator(opt_member: Option<Member>) -> bool {
@@ -81,10 +87,35 @@ fn load_gulag_sentences() -> Vec<GulagEntry> {
 
 }
 
-pub fn write_gulag_file(member: Member) {
-    let path= format!("{}/{}.gulag", GULAG_DIR, member.user_id());
-    let name = member.display_name().into_string();
-
-    let previous_roles = member.roles;
-    let file = File::create(path.as_str()).expect("Failed to create new gulag file.");
+// File format:
+// - offset from Unix Epoch
+// - role IDs
+pub fn write_gulag_file(time: u64, user: UserId, message: &Message,
+    context: &Context) -> bool {
+    let path= format!("{}/{}.gulag", GULAG_DIR, user.0);
+    let roles = if let Some(cache) = context.data.try_lock() {
+        if let Ok(member) = cache.get::<CachedPartialGuild>().unwrap().member(user.id) {
+            member.roles
+        } else {
+            let r = message.reply("Could not find Member for provided User.").unwrap();
+            println!("    Failed to find member.");
+            delete_message_after_delay(r, 10);
+            return false;
+        }
+    } else {
+        let r = message.reply("Unable to get lock on cache. Please try again.").unwrap();
+        println!("    Failed to get lock on cache.");
+        delete_message_after_delay(r, 10);
+        return false;
+    };
+    let mut file = File::create(path.as_str()).expect("Failed to create new gulag file.");
+    let offset_from_epoch = (SystemTime::now() + Duration::from_secs(time))
+        .duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs();
+    let _ = file.write_u64::<LittleEndian>(offset_from_epoch)
+        .expect("Failed to write epoch offset to file.");
+    for role_id in roles.into_iter() {
+        let _ = file.write_u64::<LittleEndian>(role_id.0)
+            .expect("Failed to write role ID to file.");
+    }
+    true
 }
