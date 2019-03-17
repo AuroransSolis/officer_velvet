@@ -83,21 +83,20 @@ pub fn delete_message_after_delay(message: Message, delay: u64) {
     });
 }
 
-fn load_gulag_sentences() -> Vec<GulagEntry> {
+fn load_and_restart_gulag_sentences() -> Vec<GulagEntry> {
 
 }
 
 // File format:
 // - offset from Unix Epoch
 // - role IDs
-pub fn write_gulag_file(time: u64, user: UserId, message: &Message,
-    context: &Context) -> bool {
+pub fn write_gulag_file(time: u64, user: UserId, message: &Message, context: &Context) -> bool {
     let path= format!("{}/{}.gulag", GULAG_DIR, user.0);
     let roles = if let Some(cache) = context.data.try_lock() {
         if let Ok(member) = cache.get::<CachedPartialGuild>().unwrap().member(user.id) {
             member.roles
         } else {
-            let r = message.reply("Could not find Member for provided User.").unwrap();
+            let r = message.reply("Could not find Member for provided user ID.").unwrap();
             println!("    Failed to find member.");
             delete_message_after_delay(r, 10);
             return false;

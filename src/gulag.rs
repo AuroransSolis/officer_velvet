@@ -52,7 +52,7 @@ command!(Gulag(context, message, args) {
         let duration = duration_arguments.into_iter().map(|arg| {
             if arg.chars().filter(|c| !c.is_digit()).sum::<usize>() > 1 {
                 reply_log_return!(start, 10, message,
-                    format!("Invalid duration argument: {}", arg).as_str())
+                    format!("Invalid duration argument: {}", arg).as_str());
             }
             let arg_digits = arg.chars().take_while(|c| c.is_digit()).collect::<String>();
             let arg_val = match arg_digits.parse::<u64>() {
@@ -65,12 +65,11 @@ command!(Gulag(context, message, args) {
                 'd' => arg_val * DAY_AS_SECS,
                 'h' => arg_val * HOUR_AS_SECS,
                 'm' => arg_val * MIN_AS_SECS,
-                _ => reply_log_return!(start, 10, message,
-                    format!("Invalid unit specifier in argument: {}", arg).as_str())
+                 _ => reply_log_return!(start, 10, message,
+                    format!("Invalid time unit specifier in argument: {}", arg).as_str())
             }
         }).sum::<u64>();
         if write_gulag_file(duration, user_id, &message, &context) {
-            let r = message.reply("Successfully wrote gulag file.")?;
             if let Some(cache) = context.try_lock() {
                 if cache.get::<CachedPartialGuild>().unwrap()
                     .edit_member(user_id, |m| m.roles(vec![gulag_role])).is_ok() {
