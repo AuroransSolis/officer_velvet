@@ -5,13 +5,14 @@ use serenity::{
     model::{id::{ChannelId, MessageId, UserId, GuildId, RoleId}, channel::{Message},
         guild::{PartialGuild, Member, Role}, user::User},
     prelude::*,
-    framework::standard::StandardFramework
+    framework::standard::StandardFramework,
+    utils::Colour
 };
 
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 
-use std::fs::{File, read_dir};
-use std::path::Path;
+use std::fs::{File, read_dir, remove_file};
+use std::path::{Path, PathBuf};
 use std::time::{Instant, Duration, SystemTime};
 use std::thread::{self, sleep};
 use std::env;
@@ -20,10 +21,19 @@ mod handler;
 use handler::Handler;
 mod gulag;
 use gulag::Gulag;
+mod current_gulags;
+use current_gulags::CurrentGulags;
+mod help;
+use help::Help;
+mod gulag_handling;
+use gulag_handling::*;
+mod misc;
+use misc::*;
 
 pub const COUNTER_FILE: &str = "./activity_counter";
 pub const GULAG_DIR: &str = "./gulags";
 pub const GATHERING_PERIOD: u64 = 604800; // one week in seconds
+pub const AURO_UID: UserId = UserId(246497842909151232);
 
 pub struct CachedPartialGuild;
 
@@ -38,10 +48,9 @@ impl TypeMapKey for GulagRole {
 }
 
 pub struct GulagEntry {
-    member_name: String,
+    file_path: PathBuf,
     user_id: UserId,
     previous_roles: Vec<RoleId>,
-    start_time: SystemTime,
     gulag_sentence: u64
 }
 
@@ -62,59 +71,7 @@ fn main() {
     let _ = client.data.lock().insert::<GulagRole>(partial_guild.role_by_name("Prisoner")
         .expect("Failed to get gulag role.").clone());
     let _ = client.data.lock().insert::<CachedPartialGuild>(partial_guild);
-}
+    let gulags = load_gulag_sentences();
+    start_gulag_sentences(&client.data, gulags);
 
-pub fn check_administrator(opt_member: Option<Member>) -> bool {
-    if let Some(member) = opt_member {
-        if let Ok(perms) = member.permissions() {
-            perms.administrator()
-        } else {
-            false
-        }
-    } else {
-        false
-    }
-}
-
-pub fn delete_message_after_delay(message: Message, delay: u64) {
-    thread::spawn(move || {
-        sleep(Duration::from_secs(delay));
-        let _ = message.delete();
-    });
-}
-
-fn load_and_restart_gulag_sentences() -> Vec<GulagEntry> {
-
-}
-
-// File format:
-// - offset from Unix Epoch
-// - role IDs
-pub fn write_gulag_file(time: u64, user: UserId, message: &Message, context: &Context) -> bool {
-    let path= format!("{}/{}.gulag", GULAG_DIR, user.0);
-    let roles = if let Some(cache) = context.data.try_lock() {
-        if let Ok(member) = cache.get::<CachedPartialGuild>().unwrap().member(user.id) {
-            member.roles
-        } else {
-            let r = message.reply("Could not find Member for provided user ID.").unwrap();
-            println!("    Failed to find member.");
-            delete_message_after_delay(r, 10);
-            return false;
-        }
-    } else {
-        let r = message.reply("Unable to get lock on cache. Please try again.").unwrap();
-        println!("    Failed to get lock on cache.");
-        delete_message_after_delay(r, 10);
-        return false;
-    };
-    let mut file = File::create(path.as_str()).expect("Failed to create new gulag file.");
-    let offset_from_epoch = (SystemTime::now() + Duration::from_secs(time))
-        .duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs();
-    let _ = file.write_u64::<LittleEndian>(offset_from_epoch)
-        .expect("Failed to write epoch offset to file.");
-    for role_id in roles.into_iter() {
-        let _ = file.write_u64::<LittleEndian>(role_id.0)
-            .expect("Failed to write role ID to file.");
-    }
-    true
 }

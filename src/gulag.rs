@@ -1,9 +1,9 @@
 use super::*;
 
-const WEEK_AS_SECS: u64 = 604800;
-const DAY_AS_SECS: u64 = 86400;
-const HOUR_AS_SECS: u64 = 3600;
-const MIN_AS_SECS: u64 = 60;
+pub const WEEK_AS_SECS: u64 = 604800;
+pub const DAY_AS_SECS: u64 = 86400;
+pub const HOUR_AS_SECS: u64 = 3600;
+pub const MIN_AS_SECS: u64 = 60;
 
 macro_rules! parse_arg_ok_or_return {
     ($parse_type:ty, $instant:ident, $delay:literal, $message:ident, $reply:expr) => {{
@@ -37,7 +37,7 @@ command!(Gulag(context, message, args) {
     let _ = message.delete();
     if check_administrator(message.member()) {
         let gulag_role = if let Some(cache) = context.data.try_lock() {
-            cache.get::<GulagRole>().clone()
+            cache.get::<GulagRole>().id
         } else {
             reply_log_return!(start, 10, message,
                 "Failed to get gulag role from cache. Please try again.");
@@ -50,38 +50,46 @@ command!(Gulag(context, message, args) {
             duration_arguments.push(arg);
         }
         let duration = duration_arguments.into_iter().map(|arg| {
-            if arg.chars().filter(|c| !c.is_digit()).sum::<usize>() > 1 {
+            if arg.chars().filter(|c| !c.is_digit(10)).sum::<usize>() > 1 {
                 reply_log_return!(start, 10, message,
                     format!("Invalid duration argument: {}", arg).as_str());
             }
-            let arg_digits = arg.chars().take_while(|c| c.is_digit()).collect::<String>();
+            let arg_digits = arg.chars().take_while(|c| c.is_digit(10)).collect::<String>();
             let arg_val = match arg_digits.parse::<u64>() {
                 Ok(val) => val,
                 Err(_) => reply_log_return!(start, 10, message,
                     format!("Failed to parse number in argument: {}", arg).as_str())
             };
-            match arg.chars().rev().take(1) {
+            match arg.chars().rev().next().unwrap() {
                 'w' => arg_val * WEEK_AS_SECS,
                 'd' => arg_val * DAY_AS_SECS,
                 'h' => arg_val * HOUR_AS_SECS,
                 'm' => arg_val * MIN_AS_SECS,
-                 _ => reply_log_return!(start, 10, message,
-                    format!("Invalid time unit specifier in argument: {}", arg).as_str())
+                 _ => {
+                    let msg = format!("Invalid time unit specifier in argument: {}", arg);
+                    let r = message.reply(msg.as_str())?;
+                    println!("    {}", msg);
+                    println!("    Elapsed: {:?}", start.elapsed());
+                    delete_message_after_delay(r, 10);
+                    return Ok(());
+                }
             }
         }).sum::<u64>();
-        if write_gulag_file(duration, user_id, &message, &context) {
-            if let Some(cache) = context.try_lock() {
-                if cache.get::<CachedPartialGuild>().unwrap()
-                    .edit_member(user_id, |m| m.roles(vec![gulag_role])).is_ok() {
-                    let r =
-                } else {
-
-                }
+        if let Some(gulag_entry) = write_gulag_file(duration, user_id, &message, &context) {
+            if start_new_gulag_sentence(&context, &message, gulag_entry) {
+                let r = message.reply("Successfully gulagged user!")?;
+                println!("    Success!");
+                println!("    Elapsed: {:?}", start.elapsed());
+                delete_message_after_delay(r, 10);
             } else {
-
+                let file_string = format!("{}/{}.gulag", GULAG_DIR, user_id.0);
+                if let Err(_) = remove_file(file_string.as_str()) {
+                    match AURO_UID.to_user() {
+                        Ok(user) => drop(user.direct_message(|m| m.content(file_string.as_str()))),
+                        Err(_) => println("    REMOVE FILE BY HAND: {}", file_string)
+                    }
+                }
             }
-        } else {
-
         }
     } else {
         let r = message.reply("You have to be an administrator to do that.")?;

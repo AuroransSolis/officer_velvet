@@ -6,3 +6,6 @@ authors = ["Aurorans Solis <primalucegd@gmail.com>"]
 [dependencies]
 serenity = "0.5.13"
 byteorder = "1.3.1"
+
+[patch.crates-io]
+openssl = { git = "https://github.com/ishitatsuyuki/rust-openssl", branch = "0.9.x" }
