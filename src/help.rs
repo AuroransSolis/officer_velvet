@@ -20,8 +20,7 @@ command!(Help(_context, message) {
                 false)
             .field("~!help", "Shows this message.", false)
             .footer(|f| f.text("Your friendly, neighbourhood gulag officer, Officer Velvet")
-                .icon_url("https://cdn.discordapp.com/avatars/246497842909151232/\
-                    6a452f7523d2e37a35bfa70863bfa679.png"))))?;
+                .icon_url(EMBED_ICON_URL))))?;
         println!("    Success!");
         println!("    Elapsed: {:?}", start.elapsed());
     } else {

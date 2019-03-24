@@ -72,8 +72,7 @@ command!(CurrentGulags(_context, message) {
             .colour(Colour::from_rgb(243, 44, 115))
             .field("User ID | Time left", list.as_str(), false)
             .footer(|f| f.text("Your friendly, neighbourhood gulag officer, Officer Velvet")
-                .icon_url("https://cdn.discordapp.com/avatars/246497842909151232/\
-                    6a452f7523d2e37a35bfa70863bfa679.png"))))?;
+                .icon_url(EMBED_ICON_URL))))?;
     } else {
         let r = message.reply("You must be an administrator to do that.")?;
         println!("    Permissions error.");

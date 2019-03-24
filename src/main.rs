@@ -39,11 +39,13 @@ use std::alloc::System;
 
 pub const COUNTER_FILE: &str = "./activity_counter";
 pub const GULAG_DIR: &str = "./gulags";
+pub const EMBED_ICON_URL: &str = "https://cdn.discordapp.com/avatars/555257721587499038/\
+    d1e248dc6720d3484c97bab2bf03e75f.png";
 pub const GATHERING_PERIOD: u64 = 604800; // one week in seconds
 pub const AURO_UID: UserId = UserId(246497842909151232);
-pub const CRAK_UID: UserId = UserId(246497842909151232);
+pub const CRAK_UID: UserId = UserId(221345168463364098);
 pub const BOT_UID: UserId = UserId(547924592786669569);
-pub const AXOLOTL_ARMADA_GID: GuildId = GuildId(421191515700723714);
+pub const AXOLOTL_ARMADA_GID: GuildId = GuildId(549382175703957504);
 
 pub const WEEK_AS_SECS: u64 = 604800;
 pub const DAY_AS_SECS: u64 = 86400;
