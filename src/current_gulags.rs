@@ -1,6 +1,6 @@
 use super::*;
 
-const SING_UNIT_STRINGS: [&str; 5] = ["weeK", "day", "hour", "minute", "second"];
+const SING_UNIT_STRINGS: [&str; 5] = ["week", "day", "hour", "minute", "second"];
 const MULT_UNIT_STRINGS: [&str; 5] = ["weeks", "days", "hours", "minutes", "seconds"];
 
 command!(CurrentGulags(_context, message) {
@@ -8,29 +8,36 @@ command!(CurrentGulags(_context, message) {
     println!("Start handling current-gulags command.");
     let start = Instant::now();
     if check_administrator(message.member()) {
+        // Create a collection to store an informative blurb about each directory entry
         let mut entries = Vec::new();
         let dir_iter = read_dir(GULAG_DIR).expect("Failed to read contents of gulags directory.");
         for item in dir_iter {
             if let Ok(entry) = item {
-                let mut file_name = file_name.file_name().into_string().unwrap();
+                // Get the user ID specified by the filename
+                let mut file_name = entry.file_name().into_string().unwrap();
                 for _ in 0..6 {
                     let _ = file_name.pop();
                 }
                 println!("    Found file for user ID: {:?}", file_name);
-                let mut file = File::open(file.path().as_path()).unwrap();
+                // Open the file and read the offset. Then convert that into time left in the
+                // gulag sentence.
+                let mut file = File::open(entry.path().as_path()).unwrap();
                 let offset = file.read_u64::<LittleEndian>().unwrap();
                 let mut left_to_offset = (SystemTime::UNIX_EPOCH + Duration::from_secs(offset))
                     .duration_since(SystemTime::now()).unwrap().as_secs();
                 let weeks = left_to_offset / WEEK_AS_SECS;
                 left_to_offset %= WEEK_AS_SECS;
-                let days = left_to_offset / DAYS_AS_SECS;
-                left_to_offset %= DAYS_AS_SECS;
-                let hours = left_to_offset / HOURS_AS_SECS;
-                left_to_offset %= HOURS_AS_SECS;
+                let days = left_to_offset / DAY_AS_SECS;
+                left_to_offset %= DAY_AS_SECS;
+                let hours = left_to_offset / HOUR_AS_SECS;
+                left_to_offset %= HOUR_AS_SECS;
                 let minutes = left_to_offset / MIN_AS_SECS;
                 left_to_offset %= MIN_AS_SECS;
                 let seconds = left_to_offset;
                 let time_unit_amts = [weeks, days, hours, minutes, seconds];
+                // Create a string in the format: "USER_ID | TIME_LEFT
+                // TIME_LEFT will contain info on the number of week(s), day(s), hour(s), minute(s),
+                // and second(s) left in the sentence.
                 let mut entry_string = format!("{} |", file_name);
                 for (i, &unit) in time_unit_amts.iter().enumerate() {
                     if unit == 1 {
@@ -44,17 +51,19 @@ command!(CurrentGulags(_context, message) {
                 entries.push(entry_string);
             }
         }
+        // Create a String that will be a collection of all of the entries
         let mut list = String::new();
         if entries.len() == 0 {
             list += "No users are currently gulagged.";
         } else if entries.len() == 1 {
-            list = entries[0];
+            list = entries.remove(0);
         } else {
-            list = entries[0];
+            list = entries.remove(0);
             for entry in entries.into_iter().skip(1) {
                 list = format!("{}\n{}", list, entry);
             }
         }
+        // Create and send an embedded message with information on the current gulag sentences.
         let _ = message.channel_id.send_message(|m| m.embed(|e| e.title("Current gulag sentences:")
             .colour(Colour::from_rgb(243, 44, 115))
             .field("User ID | Time left", list.as_str(), false)

@@ -1,5 +1,7 @@
 use super::*;
 
+// This file just contains some QoL stuff. Nothing important.
+
 pub fn check_administrator(opt_member: Option<Member>) -> bool {
     if let Some(member) = opt_member {
         if let Ok(perms) = member.permissions() {

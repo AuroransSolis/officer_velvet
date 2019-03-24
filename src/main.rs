@@ -1,9 +1,13 @@
+#![allow(unused_imports)]
+
 #[macro_use] extern crate serenity;
 extern crate byteorder;
 
 use serenity::{
-    model::{id::{ChannelId, MessageId, UserId, GuildId, RoleId}, channel::{Message},
-        guild::{PartialGuild, Member, Role}, user::User},
+    model::{
+        id::{UserId, GuildId, RoleId},
+        channel::{Message}, guild::{PartialGuild, Member, Role}
+    },
     prelude::*,
     framework::standard::StandardFramework,
     utils::Colour
@@ -29,11 +33,20 @@ mod gulag_handling;
 use gulag_handling::*;
 mod misc;
 use misc::*;
+mod remove_gulag_info;
+use remove_gulag_info::RemoveGulagInfo;
 
 pub const COUNTER_FILE: &str = "./activity_counter";
 pub const GULAG_DIR: &str = "./gulags";
 pub const GATHERING_PERIOD: u64 = 604800; // one week in seconds
 pub const AURO_UID: UserId = UserId(246497842909151232);
+pub const CRAK_UID: UserId = UserId(221345168463364098);
+pub const AXOLOTL_ARMADA_GID: GuildId = GuildId(549382175703957504);
+
+pub const WEEK_AS_SECS: u64 = 604800;
+pub const DAY_AS_SECS: u64 = 86400;
+pub const HOUR_AS_SECS: u64 = 3600;
+pub const MIN_AS_SECS: u64 = 60;
 
 pub struct CachedPartialGuild;
 
@@ -65,13 +78,26 @@ fn main() {
     println!("Created client.");
     // Cache a PartialGuild. Requesting one of these can be expensive and cause ratelimiting issues,
     // so we'll just cache one at the start. Most of the things in it aren't useful, but I do need
-    // the PartialGuild itself for adding and removing roles.
+    // the PartialGuild itself for adding and removing roles. Also cache the Prisoner role so that
+    // we don't have to fetch it every time we want to use it.
     let partial_guild = PartialGuild::get(GuildId(549382175703957504))
         .expect("Failed to get PartialGuild from GuildId(549382175703957504)");
-    let _ = client.data.lock().insert::<GulagRole>(partial_guild.role_by_name("Prisoner")
-        .expect("Failed to get gulag role.").clone());
+    let gulag_role = partial_guild.role_by_name("Prisoner").expect("Failed to get gulag role.")
+        .clone();
+    let _ = client.data.lock().insert::<GulagRole>(gulag_role.clone());
     let _ = client.data.lock().insert::<CachedPartialGuild>(partial_guild);
-    let gulags = load_gulag_sentences();
-    start_gulag_sentences(&client.data, gulags);
-
+    // Load the gulag sentences - see start_gulag_sentences(/* args */) and
+    // load_gulag_sentences(/* args */) in gulag_handling.rs.
+    start_gulag_sentences(gulag_role.id, load_gulag_sentences());
+    // Configure the client
+    client.with_framework(StandardFramework::new()
+        .configure(|c| c.prefix("=>"))
+        .cmd("gulag", Gulag)
+        .cmd("current-gulag-sentences", CurrentGulags)
+        .cmd("remove-gulag-info", RemoveGulagInfo)
+        .cmd("help", Help));
+    println!("Starting client.");// Start client
+    if let Err(why) = client.start() {
+        println!("Client error: {:?}", why);
+    }
 }
