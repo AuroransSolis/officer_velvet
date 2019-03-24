@@ -44,7 +44,7 @@ pub const EMBED_ICON_URL: &str = "https://cdn.discordapp.com/avatars/55525772158
 pub const GATHERING_PERIOD: u64 = 604800; // one week in seconds
 pub const AURO_UID: UserId = UserId(246497842909151232);
 pub const CRAK_UID: UserId = UserId(221345168463364098);
-pub const BOT_UID: UserId = UserId(547924592786669569);
+pub const BOT_UID: UserId = UserId(555257721587499038);
 pub const AXOLOTL_ARMADA_GID: GuildId = GuildId(549382175703957504);
 
 pub const WEEK_AS_SECS: u64 = 604800;
