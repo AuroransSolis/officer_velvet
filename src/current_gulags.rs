@@ -4,7 +4,6 @@ const SING_UNIT_STRINGS: [&str; 5] = ["week", "day", "hour", "minute", "second"]
 const MULT_UNIT_STRINGS: [&str; 5] = ["weeks", "days", "hours", "minutes", "seconds"];
 
 command!(CurrentGulags(_context, message) {
-    let _ = message.delete();
     println!("Start handling current-gulags command.");
     let start = Instant::now();
     if check_administrator(message.member()) {

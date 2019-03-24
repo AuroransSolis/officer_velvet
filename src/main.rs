@@ -74,7 +74,7 @@ pub struct GulagEntry {
 fn main() {
     // Pull bot token from environment (using env. var. so that I don't have to publish the code
     // with an API token in it).
-    let token = env::var("TESTING")
+    let token = env::var("VELVET")
         .expect("Expected a token in the environment");
     println!("Retrieved bot token.");
     // Create activity counter file if one doesn't exist

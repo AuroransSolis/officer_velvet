@@ -29,7 +29,6 @@ macro_rules! reply_log_return {
 command!(Gulag(context, message, args) {
     println!("Commence the gulagging.");
     let start = Instant::now();
-    let _ = message.delete();
     if check_administrator(message.member()) {
         // Get input user ID
         let user_id = parse_arg_ok_or_return!(args, u64, start, 10, message,

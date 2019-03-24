@@ -1,7 +1,6 @@
 use super::*;
 
 command!(RemoveGulagInfo(_context, message, args) {
-    let _ = message.delete();
     println!("Start handling removal of persistent gulag data.");
     let start = Instant::now();
     if !check_administrator(message.member()) {
