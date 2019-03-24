@@ -103,7 +103,7 @@ fn main() {
     client.with_framework(StandardFramework::new()
         .configure(|c| c.prefix("=>"))
         .cmd("gulag", Gulag)
-        .cmd("current-gulag-sentences", CurrentGulags)
+        .cmd("current-gulags", CurrentGulags)
         .cmd("remove-gulag-info", RemoveGulagInfo)
         .cmd("help", Help));
     println!("Starting client.");// Start client
