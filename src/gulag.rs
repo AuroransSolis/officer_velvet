@@ -54,8 +54,9 @@ command!(Gulag(context, message, args) {
             }
             // Collect all the digits in the argument
             let arg_digits = duration_arg.chars()
-                .take_while(|&c| (c as u8) < ('0' as u8) || (c as u8) > ('9' as u8))
+                .take_while(|&c| (c as u8) >= ('0' as u8) && (c as u8) <= ('9' as u8))
                 .collect::<String>();
+            println!("    Argument digits: {:?}", arg_digits);
             let arg_val = match arg_digits.parse::<u64>() {
                 Ok(val) => val,
                 Err(_) => reply_log_return!(start, 10, message,

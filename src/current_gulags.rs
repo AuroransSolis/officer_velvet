@@ -38,7 +38,7 @@ command!(CurrentGulags(_context, message) {
                 // Create a string in the format: "USER_ID | TIME_LEFT
                 // TIME_LEFT will contain info on the number of week(s), day(s), hour(s), minute(s),
                 // and second(s) left in the sentence.
-                let mut entry_string = format!("{} |", file_name);
+                let mut entry_string = format!("{} | ", file_name);
                 for (i, &unit) in time_unit_amts.iter().enumerate() {
                     if unit == 1 {
                         entry_string = format!("{}{} {}, ", entry_string, unit,
@@ -47,6 +47,10 @@ command!(CurrentGulags(_context, message) {
                         entry_string = format!("{}{} {}, ", entry_string, unit,
                             MULT_UNIT_STRINGS[i]);
                     }
+                }
+                if entry_string.chars().rev().skip(1).next().unwrap() == ',' {
+                    let _ = entry_string.pop();
+                    let _ = entry_string.pop();
                 }
                 entries.push(entry_string);
             }

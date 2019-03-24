@@ -35,13 +35,15 @@ mod misc;
 use misc::*;
 mod remove_gulag_info;
 use remove_gulag_info::RemoveGulagInfo;
+use std::alloc::System;
 
 pub const COUNTER_FILE: &str = "./activity_counter";
 pub const GULAG_DIR: &str = "./gulags";
 pub const GATHERING_PERIOD: u64 = 604800; // one week in seconds
 pub const AURO_UID: UserId = UserId(246497842909151232);
-pub const CRAK_UID: UserId = UserId(221345168463364098);
-pub const AXOLOTL_ARMADA_GID: GuildId = GuildId(549382175703957504);
+pub const CRAK_UID: UserId = UserId(246497842909151232);
+pub const BOT_UID: UserId = UserId(547924592786669569);
+pub const AXOLOTL_ARMADA_GID: GuildId = GuildId(421191515700723714);
 
 pub const WEEK_AS_SECS: u64 = 604800;
 pub const DAY_AS_SECS: u64 = 86400;
@@ -73,6 +75,12 @@ fn main() {
     let token = env::var("TESTING")
         .expect("Expected a token in the environment");
     println!("Retrieved bot token.");
+    // Create activity counter file if one doesn't exist
+    if !Path::new(COUNTER_FILE).is_file() {
+        let mut file = File::create(COUNTER_FILE).unwrap();
+        let _ = file.write_u64::<LittleEndian>(SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs()).unwrap();
+        let _ = file.write_u64::<LittleEndian>(0).unwrap();
+    }
     // Create client with the handler that I've defined
     let mut client = Client::new(&token, Handler).expect("Err creating client");
     println!("Created client.");
@@ -80,7 +88,7 @@ fn main() {
     // so we'll just cache one at the start. Most of the things in it aren't useful, but I do need
     // the PartialGuild itself for adding and removing roles. Also cache the Prisoner role so that
     // we don't have to fetch it every time we want to use it.
-    let partial_guild = PartialGuild::get(GuildId(549382175703957504))
+    let partial_guild = PartialGuild::get(AXOLOTL_ARMADA_GID)
         .expect("Failed to get PartialGuild from GuildId(549382175703957504)");
     let gulag_role = partial_guild.role_by_name("Prisoner").expect("Failed to get gulag role.")
         .clone();
