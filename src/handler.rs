@@ -26,16 +26,13 @@ impl EventHandler for Handler {
             if SystemTime::now().duration_since(SystemTime::UNIX_EPOCH
                 + Duration::from_secs(offset_from_unix_epoch))
                 .unwrap().as_secs() > GATHERING_PERIOD {
-                // Open the file, read the number of messages that were sent, and send it to
-                // Crak.
-                let mut file = File::open(COUNTER_FILE).unwrap();
-                let num_messages = file.read_u64::<LittleEndian>().unwrap();
+                // Send the number of messages sent to Crak
                 let crak = match CRAK_UID.to_user() {
                     Ok(user) => user,
                     Err(_) => return
                 };
                 let crak_msg = format!("{} messages were sent in the last gathering \
-                            period.", num_messages);
+                            period.", count);
                 drop(crak.direct_message(|m| m.content(crak_msg.as_str())));
                 // Then clear the file and write the new start of collection and 1.
                 println!("    Gathering period has ended. Clearing file.");
