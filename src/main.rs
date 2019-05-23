@@ -2,6 +2,7 @@
 
 #[macro_use] extern crate serenity;
 extern crate byteorder;
+extern crate rand;
 
 use serenity::{
     model::{
@@ -35,7 +36,8 @@ mod misc;
 use misc::*;
 mod remove_gulag_info;
 use remove_gulag_info::RemoveGulagInfo;
-use std::alloc::System;
+mod anagram;
+use anagram::Anagram;
 
 pub const COUNTER_FILE: &str = "./activity_counter";
 pub const GULAG_DIR: &str = "./gulags";
@@ -105,6 +107,7 @@ fn main() {
         .cmd("gulag", Gulag)
         .cmd("current-gulags", CurrentGulags)
         .cmd("remove-gulag-info", RemoveGulagInfo)
+        .cmd("anagram", Anagram)
         .cmd("help", Help));
     println!("Starting client.");// Start client
     if let Err(why) = client.start() {
