@@ -43,6 +43,8 @@ mod reginald;
 use reginald::reginald_visits;
 mod kirb_day;
 use kirb_day::kirb_day_task;
+mod source;
+use source::Source;
 
 pub const COUNTER_FILE: &str = "./activity_counter";
 pub const GULAG_DIR: &str = "./gulags";
@@ -119,6 +121,7 @@ fn main() {
         .cmd("current-gulags", CurrentGulags)
         .cmd("remove-gulag-info", RemoveGulagInfo)
         .cmd("anagram", Anagram)
+        .cmd("source", Source)
         .cmd("help", Help));
     println!("Starting client.");// Start client
     if let Err(why) = client.start() {
