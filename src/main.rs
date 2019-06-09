@@ -107,13 +107,17 @@ fn main() {
         .clone();
     let _ = client.data.lock().insert::<GulagRole>(gulag_role.clone());
     let _ = client.data.lock().insert::<CachedPartialGuild>(partial_guild);
+    println!("Cached gulag role and partial guild.");
     // Load the gulag sentences - see start_gulag_sentences(/* args */) and
     // load_gulag_sentences(/* args */) in gulag_handling.rs.
     start_gulag_sentences(gulag_role.id, load_gulag_sentences());
+    println!("Started gulag sentences.");
     // Make sure our friend can visit
     reginald_visits();
+    println!("Sent invitation to Reginald.");
     // Remind everyone of Kirb day
     kirb_day_task();
+    println!("Put Kirb day on the calendar.");
     // Configure the client
     client.with_framework(StandardFramework::new()
         .configure(|c| c.prefix("=>"))
