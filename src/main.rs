@@ -41,6 +41,8 @@ mod anagram;
 use anagram::Anagram;
 mod reginald;
 use reginald::reginald_visits;
+mod kirb_day;
+use kirb_day::kirb_day_task;
 
 pub const COUNTER_FILE: &str = "./activity_counter";
 pub const GULAG_DIR: &str = "./gulags";
@@ -51,6 +53,7 @@ pub const AURO_UID: UserId = UserId(246497842909151232);
 pub const CRAK_UID: UserId = UserId(221345168463364098);
 pub const BOT_UID: UserId = UserId(555257721587499038);
 pub const SHIT_CHANNEL: ChannelId = ChannelId(549383666246090773);
+pub const ANNOUNCEMENTS_CHANNEL: ChannelId = ChannelId(549385011107987477);
 pub const AXOLOTL_ARMADA_GID: GuildId = GuildId(549382175703957504);
 
 pub const WEEK_AS_SECS: u64 = 604800;
@@ -107,6 +110,8 @@ fn main() {
     start_gulag_sentences(gulag_role.id, load_gulag_sentences());
     // Make sure our friend can visit
     reginald_visits();
+    // Remind everyone of Kirb day
+    kirb_day_task();
     // Configure the client
     client.with_framework(StandardFramework::new()
         .configure(|c| c.prefix("=>"))

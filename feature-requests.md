@@ -6,4 +6,4 @@
 - Best posts/user tracker
 - ~~Anagrams (COMPLETE)~~
     - Only allow in certain channels, gulag temporarily otherwise
-- Kirb day
+- ~~Kirb day (COMPLETE)~~
