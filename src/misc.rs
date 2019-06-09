@@ -1,5 +1,7 @@
 use super::*;
 
+use serenity::prelude::Context;
+
 // This file just contains some QoL stuff. Nothing important.
 
 pub fn check_administrator(opt_member: Option<Member>) -> bool {

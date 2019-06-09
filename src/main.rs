@@ -3,10 +3,11 @@
 #[macro_use] extern crate serenity;
 extern crate byteorder;
 extern crate rand;
+extern crate chrono;
 
 use serenity::{
     model::{
-        id::{UserId, GuildId, RoleId},
+        id::{UserId, GuildId, RoleId, ChannelId},
         channel::{Message}, guild::{PartialGuild, Member, Role}
     },
     prelude::*,
@@ -38,6 +39,8 @@ mod remove_gulag_info;
 use remove_gulag_info::RemoveGulagInfo;
 mod anagram;
 use anagram::Anagram;
+mod reginald;
+use reginald::reginald_visits;
 
 pub const COUNTER_FILE: &str = "./activity_counter";
 pub const GULAG_DIR: &str = "./gulags";
@@ -47,6 +50,7 @@ pub const GATHERING_PERIOD: u64 = 604800; // one week in seconds
 pub const AURO_UID: UserId = UserId(246497842909151232);
 pub const CRAK_UID: UserId = UserId(221345168463364098);
 pub const BOT_UID: UserId = UserId(555257721587499038);
+pub const SHIT_CHANNEL: ChannelId = ChannelId(549383666246090773);
 pub const AXOLOTL_ARMADA_GID: GuildId = GuildId(549382175703957504);
 
 pub const WEEK_AS_SECS: u64 = 604800;
@@ -101,6 +105,8 @@ fn main() {
     // Load the gulag sentences - see start_gulag_sentences(/* args */) and
     // load_gulag_sentences(/* args */) in gulag_handling.rs.
     start_gulag_sentences(gulag_role.id, load_gulag_sentences());
+    // Make sure our friend can visit
+    reginald_visits();
     // Configure the client
     client.with_framework(StandardFramework::new()
         .configure(|c| c.prefix("=>"))
