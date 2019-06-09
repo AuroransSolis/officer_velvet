@@ -5,11 +5,11 @@ use chrono::Utc;
 use ::{DAY_AS_SECS, ANNOUNCEMENTS_CHANNEL};
 
 fn is_kirb_day() -> bool {
-    format!("{}", Utc::now()).chars().rev().skip(3).take(1).next().unwrap() == '8'
+    format!("{}", Utc::today()).chars().rev().skip(3).take(1).next().unwrap() == '8'
 }
 
 fn year_month_day() -> [u64; 3] {
-    let mut date_string = format!("{}", Utc::now());
+    let mut date_string = format!("{}", Utc::today());
     for _ in 0..3 {
         date_string.pop();
     }
@@ -17,7 +17,7 @@ fn year_month_day() -> [u64; 3] {
     {
         let mut parts_iter = date_string.split('-');
         for i in 0..3 {
-            ymd[i] = parts_iter.next().unwrap().parse::<u64>().unwrap();
+            ymd[i] = parts_iter.next().unwrap().parse::<u64>().expect("(kirb day)");
         }
     }
     ymd
