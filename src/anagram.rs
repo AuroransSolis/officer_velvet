@@ -14,17 +14,26 @@ pub async fn anagram(ctx: &Context, message: &Message) -> CommandResult {
     println!("    Trimmed '=>anagram' from message.");
     if unscrambled.len() == 0 {
         let _ = message
-            .reply(&ctx.http, "The fuck am I supposed to be scrambling, peasant?")
+            .reply(
+                &ctx.http,
+                "The fuck am I supposed to be scrambling, peasant?",
+            )
             .await?;
     } else if unscrambled.len() == 1 {
         let _ = message
-            .reply(&ctx.http, "I am in awe of your incompetence if you need help scrambling that.")
+            .reply(
+                &ctx.http,
+                "I am in awe of your incompetence if you need help scrambling that.",
+            )
             .await?;
     } else {
         let first = unscrambled.chars().next().unwrap();
         if !unscrambled.chars().any(|c| c != first) {
             let _ = message
-                .reply(&ctx.http, "I am in awe of your incompetence if you need help scrambling that.")
+                .reply(
+                    &ctx.http,
+                    "I am in awe of your incompetence if you need help scrambling that.",
+                )
                 .await?;
         } else {
             let mut scrambled = unscrambled.chars().collect::<Vec<char>>();
@@ -49,10 +58,11 @@ pub async fn anagram(ctx: &Context, message: &Message) -> CommandResult {
                     .send_message(&ctx.http, |m| m.content(&msg))
                     .await?;
             } else {
-                let reply = format!("That's {} characters too many. This incident will be recorded on your record.", msg.len() - 2000);
-                let _ = message
-                    .reply(&ctx.http, &reply)
-                    .await?;
+                let reply = format!(
+                    "That's {} characters too many. This incident will be recorded on your record.",
+                    msg.len() - 2000
+                );
+                let _ = message.reply(&ctx.http, &reply).await?;
             }
         }
     }

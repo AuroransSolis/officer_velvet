@@ -1,24 +1,13 @@
 use crate::{
     tasks::{periodic_task::PeriodicTask, TaskType},
-    BotIdKey, GulagRoleKey, ReadyKey, TasksKey,
+    BotIdKey, TasksKey,
 };
 use serenity::{
     async_trait,
-    framework::standard::{
-        CommandError,
-        macros::hook,
-    },
-    model::{channel::Message, gateway::Ready, id::UserId, user::CurrentUser},
+    framework::standard::{macros::hook, CommandError},
+    model::channel::Message,
     prelude::*,
 };
-
-// Convenience
-macro_rules! print_elapsed_and_return {
-    ($instant:ident) => {{
-        println!("    Elapsed: {:?}", $instant.elapsed());
-        return;
-    }};
-}
 
 pub struct Handler;
 

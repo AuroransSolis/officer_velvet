@@ -1,7 +1,7 @@
 use chrono::prelude::*;
 use serde::{Deserialize, Serialize};
 use serenity::model::id::ChannelId;
-use std::cmp::{Ord, Ordering, PartialEq, PartialOrd};
+use std::cmp::PartialEq;
 
 fn time_eq_to_mins(t1: NaiveTime, t2: NaiveTime) -> bool {
     t1.hour() == t2.hour() && t1.minute() == t2.minute()

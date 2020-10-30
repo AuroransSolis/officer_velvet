@@ -7,7 +7,7 @@ use gulag::Gulag;
 use periodic_task::PeriodicTask;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub enum TaskType {
     DateConditionalTask(DateConditionalTask),
     Gulag(Gulag),
