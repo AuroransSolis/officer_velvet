@@ -1,31 +1,47 @@
-#![allow(unused_imports)]
-
-#[macro_use] extern crate serenity;
-extern crate byteorder;
-extern crate rand;
-extern crate chrono;
-
+use anyhow::Result as AnyResult;
+use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
+use crossbeam_channel::{unbounded, Receiver, Sender};
 use serenity::{
+    framework::{StandardFramework, standard::macros::group},
     model::{
-        id::{UserId, GuildId, RoleId, ChannelId},
-        channel::{Message}, guild::{PartialGuild, Member, Role}
+        guild::{PartialGuild, Role},
+        id::UserId,
     },
     prelude::*,
-    framework::standard::StandardFramework,
-    utils::Colour
 };
-
-use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
-
-use std::fs::{File, read_dir, remove_file};
+/*use serenity::{
+    framework::standard::StandardFramework,
+    model::{
+        channel::Message,
+        guild::{Member, PartialGuild, Role},
+        id::{ChannelId, GuildId, RoleId, UserId},
+    },
+    prelude::*,
+    utils::Colour,
+};*/
+use serde::{Deserialize, Serialize};
+use serde_json::error::{Category as JsonErrorCategory, Error as JsonError};
+use std::fs::{self, read_dir, remove_file, File};
+use std::io::{Error as IoError, ErrorKind as IoErrorKind, Write};
 use std::path::{Path, PathBuf};
-use std::time::{Instant, Duration, SystemTime};
 use std::thread::{self, sleep};
-use std::env;
+use std::time::{Duration, Instant, SystemTime};
+use structopt::StructOpt;
 
+mod anagram;
+mod args;
+mod cache_keys;
+mod config;
 mod handler;
-use handler::Handler;
-mod gulag;
+mod tasks;
+
+use anagram::*;
+use cache_keys::*;
+use config::Config;
+use handler::{after, Handler};
+use tasks::TaskType;
+
+/*mod gulag;
 use gulag::Gulag;
 mod current_gulags;
 use current_gulags::CurrentGulags;
@@ -37,7 +53,6 @@ mod misc;
 use misc::*;
 mod remove_gulag_info;
 use remove_gulag_info::RemoveGulagInfo;
-mod anagram;
 use anagram::Anagram;
 mod reginald;
 use reginald::reginald_visits;
@@ -51,7 +66,6 @@ pub const GULAG_DIR: &str = "./gulags";
 pub const EMBED_ICON_URL: &str = "https://cdn.discordapp.com/avatars/555257721587499038/\
     d1e248dc6720d3484c97bab2bf03e75f.png";
 pub const GATHERING_PERIOD: u64 = 604800; // one week in seconds
-pub const AURO_UID: UserId = UserId(246497842909151232);
 pub const CRAK_UID: UserId = UserId(221345168463364098);
 pub const BOT_UID: UserId = UserId(555257721587499038);
 pub const SHIT_CHANNEL: ChannelId = ChannelId(549383666246090773);
@@ -61,74 +75,116 @@ pub const AXOLOTL_ARMADA_GID: GuildId = GuildId(549382175703957504);
 pub const WEEK_AS_SECS: u64 = 604800;
 pub const DAY_AS_SECS: u64 = 86400;
 pub const HOUR_AS_SECS: u64 = 3600;
-pub const MIN_AS_SECS: u64 = 60;
+pub const MIN_AS_SECS: u64 = 60;*/
 
-pub struct CachedPartialGuild;
+#[group]
+#[commands(anagram)]
+struct GeneralCommands;
 
-impl TypeMapKey for CachedPartialGuild {
-    type Value = PartialGuild;
-}
-
-pub struct GulagRole;
-
-impl TypeMapKey for GulagRole {
-    type Value = Role;
-}
-
-pub struct GulagEntry {
-    file_path: PathBuf,
-    user_id: UserId,
-    previous_roles: Vec<RoleId>,
-    gulag_sentence: u64
-}
-
-fn main() {
-    // Pull bot token from environment (using env. var. so that I don't have to publish the code
-    // with an API token in it).
-    let token = env::var("VELVET")
-        .expect("Expected a token in the environment");
-    println!("Retrieved bot token.");
-    // Create activity counter file if one doesn't exist
-    if !Path::new(COUNTER_FILE).is_file() {
-        let mut file = File::create(COUNTER_FILE).unwrap();
-        let _ = file.write_u64::<LittleEndian>(SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs()).unwrap();
-        let _ = file.write_u64::<LittleEndian>(0).unwrap();
-    }
-    // Create client with the handler that I've defined
-    let mut client = Client::new(&token, Handler).expect("Err creating client");
-    println!("Created client.");
-    // Cache a PartialGuild. Requesting one of these can be expensive and cause ratelimiting issues,
-    // so we'll just cache one at the start. Most of the things in it aren't useful, but I do need
-    // the PartialGuild itself for adding and removing roles. Also cache the Prisoner role so that
-    // we don't have to fetch it every time we want to use it.
-    let partial_guild = PartialGuild::get(AXOLOTL_ARMADA_GID)
-        .expect("Failed to get PartialGuild from GuildId(549382175703957504)");
-    let gulag_role = partial_guild.role_by_name("Prisoner").expect("Failed to get gulag role.")
-        .clone();
-    let _ = client.data.lock().insert::<GulagRole>(gulag_role.clone());
-    let _ = client.data.lock().insert::<CachedPartialGuild>(partial_guild);
-    println!("Cached gulag role and partial guild.");
-    // Load the gulag sentences - see start_gulag_sentences(/* args */) and
-    // load_gulag_sentences(/* args */) in gulag_handling.rs.
-    start_gulag_sentences(gulag_role.id, load_gulag_sentences());
-    println!("Started gulag sentences.");
-    // Make sure our friend can visit
-    reginald_visits();
-    println!("Sent invitation to Reginald.");
-    // Remind everyone of Kirb day
-    kirb_day_task();
-    println!("Put Kirb day on the calendar.");
-    // Configure the client
-    client.with_framework(StandardFramework::new()
+#[tokio::main]
+async fn main() -> AnyResult<()> {
+    let args::Args { config_file_path } = args::Args::from_args();
+    let config_contents = match fs::read_to_string(&config_file_path) {
+        Ok(contents) => Ok(contents),
+        Err(error) => {
+            if error.kind() == IoErrorKind::NotFound {
+                println!(
+                    "Config file not found. Attempting to create new default config file at '{}'",
+                    config_file_path
+                );
+                let mut new_config_file = File::create(&config_file_path)?;
+                let default_contents = serde_json::to_string(&Config::default()).unwrap();
+                new_config_file.write_all(default_contents.as_bytes())?;
+                println!("Created new config file and wrote defaults.");
+            }
+            Err(error)
+        }
+    }?;
+    println!("Read config file contents.");
+    let config = serde_json::from_str::<Config>(&config_contents)?;
+    println!("Parsed config from config file contents.");
+    let tasks = match fs::read_to_string(&config.tasks_file) {
+        Ok(contents) if contents.len() == 0 => Ok(Vec::new()),
+        Ok(contents) => Ok(serde_json::from_str::<Vec<TaskType>>(&contents)?),
+        Err(error) => match error.kind() {
+            IoErrorKind::NotFound => {
+                println!(
+                    "Tasks file not found. Attempting to create new tasks file at '{}'",
+                    config.tasks_file
+                );
+                let _ = File::create(&config.tasks_file)?;
+                println!("Created new blank tasks file.");
+                Ok(Vec::new())
+            }
+            _ => Err(error),
+        },
+    }?;
+    println!("Collected tasks.");
+    let framework = StandardFramework::new()
         .configure(|c| c.prefix("=>"))
-        .cmd("gulag", Gulag)
-        .cmd("current-gulags", CurrentGulags)
-        .cmd("remove-gulag-info", RemoveGulagInfo)
-        .cmd("anagram", Anagram)
-        .cmd("source", Source)
-        .cmd("help", Help));
-    println!("Starting client.");// Start client
-    if let Err(why) = client.start() {
+        .after(after)
+        .group(&GENERALCOMMANDS_GROUP);
+    println!("Created framework.");
+    let mut client = Client::builder(&config.bot_id)
+        .framework(framework)
+        .event_handler(Handler)
+        .await?;
+    println!("Created client.");
+    // Get bot ID
+    let bot_id = client
+        .cache_and_http
+        .http
+        .get_current_application_info()
+        .await?
+        .id;
+    // Cache bot ID
+    client.data.write().await.insert::<BotIdKey>(bot_id);
+    println!("Fetched and cached bot ID.");
+    // Get all the roles in the guild to find the gulag role.
+    let guild_roles = client
+        .cache_and_http
+        .http
+        .get_guild_roles(config.guild_id.into())
+        .await?;
+    println!("Fetched guild roles.");
+    // Try to find the gulag role.
+    let gulag_role = guild_roles
+        .into_iter()
+        .find(|role| role.name == config.prisoner_role_name || role.id == config.prisoner_role_id)
+        .ok_or({
+            let msg = format!(
+                "Failed to get gulag role by name ('{}') or ID ('{}').",
+                config.prisoner_role_name, config.prisoner_role_id
+            );
+            IoError::new(IoErrorKind::InvalidData, msg.as_str())
+        })?;
+    println!("Found gulag role in guild roles.");
+    // Once found, cache it.
+    client.data.write().await.insert::<GulagRoleKey>(gulag_role);
+    println!("Cached gulag role.");
+    // Cache the tasks - they may need to be updated depending on role changes and such.
+    client.data.write().await.insert::<TasksKey>(tasks);
+    println!("Cached tasks.");
+    // Create a channel for the bot thread to be able to send new tasks to the main thread.
+    let (send, recv) = unbounded();
+    client.data.write().await.insert::<TaskSenderKey>(send);
+    println!("Cached gulag role and partial guild.");
+    // Spawn a ctrl+c handler here and have it send the proper instructions n' stuff
+    // todo
+    // Configure the client
+    /*client.with_framework(
+        StandardFramework::new()
+            .configure(|c| c.prefix("=>"))
+            .cmd("gulag", Gulag)
+            .cmd("current-gulags", CurrentGulags)
+            .cmd("remove-gulag-info", RemoveGulagInfo)
+            .cmd("anagram", Anagram)
+            .cmd("source", Source)
+            .cmd("help", Help),
+    );*/
+    println!("Starting client.");
+    if let Err(why) = client.start().await {
         println!("Client error: {:?}", why);
     }
+    Ok(())
 }

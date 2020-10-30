@@ -1,65 +1,72 @@
-use super::*;
+use crate::{
+    tasks::{periodic_task::PeriodicTask, TaskType},
+    BotIdKey, GulagRoleKey, ReadyKey, TasksKey,
+};
+use serenity::{
+    async_trait,
+    framework::standard::{
+        CommandError,
+        macros::hook,
+    },
+    model::{channel::Message, gateway::Ready, id::UserId, user::CurrentUser},
+    prelude::*,
+};
 
 // Convenience
 macro_rules! print_elapsed_and_return {
     ($instant:ident) => {{
         println!("    Elapsed: {:?}", $instant.elapsed());
         return;
-    }}
+    }};
 }
 
 pub struct Handler;
 
+#[async_trait]
 impl EventHandler for Handler {
-    fn message(&self, _context: Context, message: Message) {
-        if message.author.id == BOT_UID {
-            return;
-        }
-        println!("Begin handling message send.");
-        let start = Instant::now();
-        // Try to open the counter file
-        let (offset_from_unix_epoch, count) = if let Ok(mut file) = File::open(COUNTER_FILE) {
-            let offset_from_unix_epoch = file.read_u64::<LittleEndian>()
-                .expect("Failed to read offset from epoch.");
-            let count = file.read_u64::<LittleEndian>()
-                .expect("Failed to read current collection period count.");
-            if SystemTime::now().duration_since(SystemTime::UNIX_EPOCH
-                + Duration::from_secs(offset_from_unix_epoch))
-                .unwrap().as_secs() > GATHERING_PERIOD {
-                // Send the number of messages sent to Crak
-                let crak = match CRAK_UID.to_user() {
-                    Ok(user) => user,
-                    Err(_) => return
-                };
-                let crak_msg = format!("{} messages were sent in the last gathering \
-                            period.", count);
-                drop(crak.direct_message(|m| m.content(crak_msg.as_str())));
-                // Then clear the file and write the new start of collection and 1.
-                println!("    Gathering period has ended. Clearing file.");
-                let mut file = File::create(COUNTER_FILE)
-                    .expect("    Failed to clear counter file after end of gathering \
-                                    period.");
-                let _ = file.write_u64::<LittleEndian>(SystemTime::now()
-                    .duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs());
-                let _ = file.write_u64::<LittleEndian>(1)
-                    .expect("    Failed to write 1 to new file.");
-                println!("    Successfully cleared and wrote time and 1 to new counter \
-                            file.");
-                print_elapsed_and_return!(start);
-            } else {
-                (offset_from_unix_epoch, count)
+    async fn message(&self, context: Context, message: Message) {
+        if message.author.id != *context.data.read().await.get::<BotIdKey>().unwrap() {
+            println!("Begin handling sent message.");
+            // Get a lock on the data by holding onto the result of `write`.
+            let mut data = context.data.write().await;
+            // Get the task list.
+            let tasks = data.get_mut::<TasksKey>().unwrap();
+            // Try and find a periodic task with the header "Activity report".
+            let try_find_counter = tasks.iter_mut().find_map(|task_type| match task_type {
+                TaskType::PeriodicTask(task) => match task {
+                    PeriodicTask::SendMessage {
+                        header_text,
+                        content,
+                        ..
+                    } => match header_text.as_ref().map(|text| text.as_str()) {
+                        Some("Activity report") => Some(content),
+                        _ => None,
+                    },
+                    _ => None,
+                },
+                _ => None,
+            });
+            // If it exists, parse the number the content contains, increment the number, and
+            // update the content.
+            if let Some(counter) = try_find_counter {
+                let mut current_count = counter.parse::<usize>().unwrap();
+                current_count += 1;
+                counter.clear();
+                counter.push_str(&format!("{}", current_count));
             }
-        } else {
-            return;
-        };
-        // Clear the counter file and write the start of the collection period back along
-        // with the new count.
-        let mut file  = File::create(COUNTER_FILE).expect("    Failed to clear counter file.");
-        let _ = file.write_u64::<LittleEndian>(offset_from_unix_epoch)
-            .expect("    Failed to write offset to file.");
-        let _ = file.write_u64::<LittleEndian>(count + 1)
-            .expect("    Failed to write new number to file.");
-        println!("    Successfully handled message event.");
-        println!("    Elapsed: {:?}", start.elapsed());
+        }
+    }
+}
+
+#[hook]
+pub async fn after(ctx: &Context, msg: &Message, cmd_name: &str, error: Result<(), CommandError>) {
+    if let Err(why) = error {
+        println!(
+            "Command {:?} triggered by {}: {:?}",
+            cmd_name,
+            msg.author.tag(),
+            why
+        );
+        let _ = msg.react(ctx, '\u{274C}').await;
     }
 }

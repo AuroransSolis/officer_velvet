@@ -4,3 +4,5 @@
 Cargo.lock
 gulags/
 activity_counter
+config.json
+tasks.json
