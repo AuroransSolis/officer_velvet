@@ -1,12 +1,7 @@
 use anyhow::Result as AnyResult;
-use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
-use crossbeam_channel::{unbounded, Receiver, Sender};
+use crossbeam_channel::unbounded;
 use serenity::{
-    framework::{StandardFramework, standard::macros::group},
-    model::{
-        guild::{PartialGuild, Role},
-        id::UserId,
-    },
+    framework::{standard::macros::group, StandardFramework},
     prelude::*,
 };
 /*use serenity::{
@@ -19,37 +14,32 @@ use serenity::{
     prelude::*,
     utils::Colour,
 };*/
-use serde::{Deserialize, Serialize};
-use serde_json::error::{Category as JsonErrorCategory, Error as JsonError};
-use std::fs::{self, read_dir, remove_file, File};
+use std::fs::{self, File};
 use std::io::{Error as IoError, ErrorKind as IoErrorKind, Write};
-use std::path::{Path, PathBuf};
-use std::thread::{self, sleep};
-use std::time::{Duration, Instant, SystemTime};
 use structopt::StructOpt;
 
 mod anagram;
 mod args;
 mod cache_keys;
 mod config;
+mod current_gulags;
 mod handler;
 mod tasks;
 
 use anagram::*;
 use cache_keys::*;
 use config::Config;
+use current_gulags::*;
 use handler::{after, Handler};
 use tasks::TaskType;
 
-/*mod gulag;
-use gulag::Gulag;
-mod current_gulags;
-use current_gulags::CurrentGulags;
+/*
+mod gulag;
+use gulag::*;
 mod help;
 use help::Help;
 mod gulag_handling;
 use gulag_handling::*;
-mod misc;
 use misc::*;
 mod remove_gulag_info;
 use remove_gulag_info::RemoveGulagInfo;
@@ -81,6 +71,10 @@ pub const MIN_AS_SECS: u64 = 60;*/
 #[commands(anagram)]
 struct GeneralCommands;
 
+#[group]
+#[commands(current_gulags)]
+struct AdminCommands;
+
 #[tokio::main]
 async fn main() -> AnyResult<()> {
     let args::Args { config_file_path } = args::Args::from_args();
@@ -101,7 +95,7 @@ async fn main() -> AnyResult<()> {
         }
     }?;
     println!("Read config file contents.");
-    let config = serde_json::from_str::<Config>(&config_contents)?;
+    let mut config = serde_json::from_str::<Config>(&config_contents)?;
     println!("Parsed config from config file contents.");
     let tasks = match fs::read_to_string(&config.tasks_file) {
         Ok(contents) if contents.len() == 0 => Ok(Vec::new()),
@@ -123,7 +117,8 @@ async fn main() -> AnyResult<()> {
     let framework = StandardFramework::new()
         .configure(|c| c.prefix("=>"))
         .after(after)
-        .group(&GENERALCOMMANDS_GROUP);
+        .group(&GENERALCOMMANDS_GROUP)
+        .group(&ADMINCOMMANDS_GROUP);
     println!("Created framework.");
     let mut client = Client::builder(&config.bot_id)
         .framework(framework)
@@ -149,39 +144,110 @@ async fn main() -> AnyResult<()> {
     println!("Fetched guild roles.");
     // Try to find the gulag role.
     let gulag_role = guild_roles
-        .into_iter()
-        .find(|role| role.name == config.prisoner_role_name || role.id == config.prisoner_role_id)
+        .iter()
+        .find(|&role| role.name == config.prisoner_role_name || role.id == config.prisoner_role_id)
         .ok_or({
             let msg = format!(
                 "Failed to get gulag role by name ('{}') or ID ('{}').",
                 config.prisoner_role_name, config.prisoner_role_id
             );
             IoError::new(IoErrorKind::InvalidData, msg.as_str())
-        })?;
+        })?
+        .clone();
     println!("Found gulag role in guild roles.");
-    // Once found, cache it.
+    println!("Checking whether it is necessary to update the prisoner role name or ID");
+    // Update role name and/or ID in config if necessary, and write out to file.
+    if gulag_role.id != config.prisoner_role_id || gulag_role.id != config.prisoner_role_id {
+        if gulag_role.id != config.prisoner_role_id {
+            println!("    IDs do not match. Updating ID.");
+            config.prisoner_role_id = gulag_role.id;
+        } else if gulag_role.name != config.prisoner_role_name {
+            println!("    Names do not match. Updating name.");
+            config.prisoner_role_name.clear();
+            config.prisoner_role_name.push_str(&gulag_role.name);
+        }
+        println!("    Re-creating config file.");
+        let mut file = File::create(&config_file_path)?;
+        println!("    Serializing updated config.");
+        let config_string = serde_json::to_string(&config)?;
+        println!("    Writing updated config to file.");
+        file.write_all(config_string.as_bytes())?;
+        println!("    Updated saved config.");
+    } else {
+        println!("    Saved config is up to date.");
+    }
+    // Cache gulag role.
     client.data.write().await.insert::<GulagRoleKey>(gulag_role);
     println!("Cached gulag role.");
+    // Find all the roles allowed permission to use all commands and cache them as well.
+    let elevated_roles = guild_roles
+        .iter()
+        .filter(|&role1| {
+            config
+                .elevated_roles
+                .iter()
+                .any(|role2| &role1.name == &role2.0 || &role1.id == &role2.1)
+        })
+        .map(|role| role.clone())
+        .collect::<Vec<_>>();
+    println!("Found elevated roles.");
+    println!("Checking whether it is necessary to update elevated role names or IDs");
+    // Update role name and/or ID for each role in config if necessary, and write out to file.
+    if elevated_roles.iter()
+        .map(|role| {
+            println!("    Checking config values for role '{}' (ID {})", role.name, role.id);
+            let config = config
+                .elevated_roles
+                .iter_mut()
+                .find(|config_role| &role.id == &config_role.1 || &role.name == &config_role.0)
+                .unwrap();
+            if &role.id != &config.1 {
+                println!("        IDs do not match. Updating ID.");
+                config.1 = role.id;
+                true
+            } else if &role.name != &config.0 {
+                println!("        Names do not match. Updating name.");
+                config.0.clear();
+                config.0.push_str(&role.name.as_str());
+                true
+            } else {
+                println!("        Name and ID match.");
+                false
+            }
+        })
+        .fold(false, |acc, new| acc || new)
+    {
+        println!("    Re-creating config file.");
+        let mut file = File::create(&config_file_path)?;
+        println!("    Serializing updated config.");
+        let config_string = serde_json::to_string(&config)?;
+        println!("    Writing updated config to file.");
+        file.write_all(config_string.as_bytes())?;
+        println!("    Updated saved config.");
+    } else {
+        println!("    Saved config is up to date.");
+    }
+    // Cache elevated roles.
+    client
+        .data
+        .write()
+        .await
+        .insert::<ElevatedRolesKey>(elevated_roles);
+    // Cache the config.
+    client
+        .data
+        .write()
+        .await
+        .insert::<ConfigKey>(config);
     // Cache the tasks - they may need to be updated depending on role changes and such.
     client.data.write().await.insert::<TasksKey>(tasks);
     println!("Cached tasks.");
     // Create a channel for the bot thread to be able to send new tasks to the main thread.
     let (send, recv) = unbounded();
     client.data.write().await.insert::<TaskSenderKey>(send);
-    println!("Cached gulag role and partial guild.");
-    // Spawn a ctrl+c handler here and have it send the proper instructions n' stuff
+    // Spawn a ctrl+c handler here and have it send the proper instructions n' stuff.
     // todo
-    // Configure the client
-    /*client.with_framework(
-        StandardFramework::new()
-            .configure(|c| c.prefix("=>"))
-            .cmd("gulag", Gulag)
-            .cmd("current-gulags", CurrentGulags)
-            .cmd("remove-gulag-info", RemoveGulagInfo)
-            .cmd("anagram", Anagram)
-            .cmd("source", Source)
-            .cmd("help", Help),
-    );*/
+    // Start the client.
     println!("Starting client.");
     if let Err(why) = client.start().await {
         println!("Client error: {:?}", why);

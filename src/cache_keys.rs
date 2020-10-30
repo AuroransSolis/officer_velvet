@@ -1,6 +1,9 @@
 use crate::{Config, TaskType};
 use crossbeam_channel::Sender;
-use serenity::{model::{guild::Role, id::UserId}, prelude::*};
+use serenity::{
+    model::{guild::Role, id::UserId},
+    prelude::*,
+};
 
 pub struct BotIdKey;
 
@@ -12,6 +15,12 @@ pub struct ConfigKey;
 
 impl TypeMapKey for ConfigKey {
     type Value = Config;
+}
+
+pub struct ElevatedRolesKey;
+
+impl TypeMapKey for ElevatedRolesKey {
+    type Value = Vec<Role>;
 }
 
 pub struct GulagRoleKey;
