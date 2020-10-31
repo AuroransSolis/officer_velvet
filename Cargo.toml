@@ -15,11 +15,11 @@ structopt = "0.3.20"
 
 [dependencies.tokio]
 version = "0.2"
-features = ["macros", "signal"]
+features = ["fs", "macros", "signal", "time"]
 
 [dependencies.serenity]
 version = "0.9.0"
-features = ["cache", "framework", "standard_framework", "rustls_backend"]
+features = ["cache", "framework", "rustls_backend", "standard_framework"]
 
 # [patch.crates-io]
 # openssl = { git = "https://github.com/ishitatsuyuki/rust-openssl", branch = "0.9.x" }
