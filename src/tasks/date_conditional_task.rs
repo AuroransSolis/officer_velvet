@@ -1,7 +1,12 @@
+use super::task::Task;
+use anyhow::Result as AnyResult;
 use chrono::prelude::*;
 use serde::{Deserialize, Serialize};
-use serenity::model::id::ChannelId;
-use std::cmp::PartialEq;
+use serenity::{
+    http::client::Http,
+    prelude::{RwLock, TypeMap},
+};
+use std::{cmp::PartialEq, sync::Arc};
 
 fn time_eq_to_mins(t1: NaiveTime, t2: NaiveTime) -> bool {
     t1.hour() == t2.hour() && t1.minute() == t2.minute()
@@ -39,30 +44,17 @@ impl<'a> PartialEq<DateTime<Utc>> for &'a DateCondition {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
-pub enum DateConditionalTask {
-    SendMessage {
-        send_to: ChannelId,
-        is_embed: bool,
-        header: Option<String>,
-        header_text: Option<String>,
-        content: String,
-        footer: Option<String>,
-        footer_text: Option<String>,
-        upload_file: Option<String>,
-        condition: DateCondition,
-    },
-    UpdateAppearance {
-        new_name: String,
-        new_icon_url: String,
-        condition: DateCondition,
-    },
+pub struct DateConditionalTask {
+    task: Task,
+    condition: DateCondition,
 }
 
 impl DateConditionalTask {
     pub fn time_to_act(&self) -> bool {
-        match self {
-            DateConditionalTask::SendMessage { condition, .. }
-            | DateConditionalTask::UpdateAppearance { condition, .. } => condition == Utc::now(),
-        }
+        &self.condition == Utc::now()
+    }
+
+    pub async fn act(&self, data: &Arc<RwLock<TypeMap>>, http: &Arc<Http>) -> AnyResult<()> {
+        self.task.act(data, http).await
     }
 }

@@ -4,18 +4,12 @@ use serenity::{
     framework::{standard::macros::group, StandardFramework},
     prelude::*,
 };
-/*use serenity::{
-    framework::standard::StandardFramework,
-    model::{
-        channel::Message,
-        guild::{Member, PartialGuild, Role},
-        id::{ChannelId, GuildId, RoleId, UserId},
-    },
-    prelude::*,
-    utils::Colour,
-};*/
-use std::fs::{self, File};
-use std::io::{Error as IoError, ErrorKind as IoErrorKind, Write};
+use std::{
+    fs::{self, File},
+    io::{Error as IoError, ErrorKind as IoErrorKind, Write},
+    thread::sleep,
+    time::{Duration, Instant},
+};
 use structopt::StructOpt;
 
 mod anagram;
@@ -35,6 +29,8 @@ use current_gulags::*;
 use gulag::*;
 use handler::{after, Handler};
 use tasks::TaskType;
+
+pub const FILES_DIR: &str = "files/";
 
 /*
 mod gulag;
@@ -89,7 +85,7 @@ async fn main() -> AnyResult<()> {
                     config_file_path
                 );
                 let mut new_config_file = File::create(&config_file_path)?;
-                let default_contents = serde_json::to_string(&Config::default()).unwrap();
+                let default_contents = serde_json::to_string_pretty(&Config::default()).unwrap();
                 new_config_file.write_all(default_contents.as_bytes())?;
                 println!("Created new config file and wrote defaults.");
             }
@@ -171,7 +167,7 @@ async fn main() -> AnyResult<()> {
         println!("    Re-creating config file.");
         let mut file = File::create(&config_file_path)?;
         println!("    Serializing updated config.");
-        let config_string = serde_json::to_string(&config)?;
+        let config_string = serde_json::to_string_pretty(&config)?;
         println!("    Writing updated config to file.");
         file.write_all(config_string.as_bytes())?;
         println!("    Updated saved config.");
@@ -226,7 +222,7 @@ async fn main() -> AnyResult<()> {
         println!("    Re-creating config file.");
         let mut file = File::create(&config_file_path)?;
         println!("    Serializing updated config.");
-        let config_string = serde_json::to_string(&config)?;
+        let config_string = serde_json::to_string_pretty(&config)?;
         println!("    Writing updated config to file.");
         file.write_all(config_string.as_bytes())?;
         println!("    Updated saved config.");
@@ -254,5 +250,50 @@ async fn main() -> AnyResult<()> {
     if let Err(why) = client.start().await {
         println!("Client error: {:?}", why);
     }
-    Ok(())
+    println!("Started client.");
+    println!("Entering task handling loop.");
+    // Start task handling loop.
+    loop {
+        let end = Instant::now()
+            .checked_add(Duration::from_millis(500))
+            .unwrap();
+        // Get write lock on context data.
+        let mut context_data = client.data.write().await;
+        let tasks = context_data.get_mut::<TasksKey>().unwrap();
+        let mut made_changes = true;
+        // Check for new tasks.
+        while let Ok(task) = recv.try_recv() {
+            println!("TL | Received new task - pushing to task list.");
+            tasks.push(task);
+            made_changes = true;
+        }
+        // Check whether any current tasks need to be executed.
+        for i in (0..tasks.len()).rev() {
+            if tasks[i].time_to_act() {
+                tasks[i]
+                    .act(&client.data, &client.cache_and_http.http)
+                    .await?;
+                if tasks[i].is_gulag() {
+                    println!("TL | Gulag period has elapsed - removing from task list.");
+                    tasks.remove(i);
+                    made_changes = true;
+                }
+            }
+        }
+        drop(context_data);
+        if made_changes {
+            println!("TL | Changes to task list were made.");
+            println!("TL | Serializing task list and writing to task file.");
+            let context_data = client.data.read().await;
+            let tasks = context_data.get::<TasksKey>().unwrap();
+            let tasks_path = context_data.get::<ConfigKey>().unwrap().tasks_file.as_str();
+            let mut tasks_file = File::create(tasks_path)?;
+            let new_contents = serde_json::to_string_pretty(tasks)?;
+            tasks_file.write_all(new_contents.as_bytes())?;
+        }
+        let sleep_for = end.duration_since(Instant::now());
+        if sleep_for > Duration::from_secs(0) {
+            sleep(sleep_for);
+        }
+    }
 }

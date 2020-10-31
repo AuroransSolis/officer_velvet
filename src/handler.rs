@@ -1,5 +1,5 @@
 use crate::{
-    tasks::{periodic_task::PeriodicTask, TaskType},
+    tasks::{message::MessageType, task::Task, TaskType},
     BotIdKey, TasksKey,
 };
 use serenity::{
@@ -22,13 +22,17 @@ impl EventHandler for Handler {
             let tasks = data.get_mut::<TasksKey>().unwrap();
             // Try and find a periodic task with the header "Activity report".
             let try_find_counter = tasks.iter_mut().find_map(|task_type| match task_type {
-                TaskType::PeriodicTask(task) => match task {
-                    PeriodicTask::SendMessage {
-                        header_text,
-                        content,
-                        ..
-                    } => match header_text.as_ref().map(|text| text.as_str()) {
-                        Some("Activity report") => Some(content),
+                TaskType::PeriodicTask(task) => match &mut task.task {
+                    Task::SendMessage { message, .. } => match message {
+                        MessageType::Embed {
+                            description,
+                            fields,
+                            ..
+                        } if description.as_ref().map(|s| s.as_str())
+                            == Some("Activity report") =>
+                        {
+                            fields.as_mut().unwrap().get_mut(0)
+                        }
                         _ => None,
                     },
                     _ => None,
@@ -37,7 +41,7 @@ impl EventHandler for Handler {
             });
             // If it exists, parse the number the content contains, increment the number, and
             // update the content.
-            if let Some(counter) = try_find_counter {
+            if let Some((_, counter, _)) = try_find_counter {
                 let mut current_count = counter.parse::<usize>().unwrap();
                 current_count += 1;
                 counter.clear();
