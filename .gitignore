@@ -6,3 +6,5 @@ gulags/
 activity_counter
 config.json
 tasks.json
+.vscode/
+files/
