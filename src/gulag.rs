@@ -32,7 +32,6 @@ struct GulagApp {
         long = "user",
         name = "user_id",
         parse(try_from_str = parse_user_id_from_mention),
-        required(true)
     )]
     user_id: UserId,
     #[structopt(
