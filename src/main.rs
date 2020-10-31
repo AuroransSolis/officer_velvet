@@ -1,7 +1,6 @@
 #![feature(async_closure)]
 
 use anyhow::Result as AnyResult;
-use crossbeam_channel::{unbounded, Receiver};
 use serenity::{
     framework::{standard::macros::group, StandardFramework},
     http::client::Http,
@@ -11,10 +10,15 @@ use std::{
     fs::{self, File},
     io::{Error as IoError, ErrorKind as IoErrorKind, Write},
     sync::Arc,
-    thread::sleep,
-    time::{Duration, Instant},
+    time::Duration,
 };
 use structopt::StructOpt;
+use tokio::{
+    fs::File as AsyncFile,
+    io::AsyncWriteExt,
+    sync::mpsc::{unbounded_channel, UnboundedReceiver},
+    time::interval,
+};
 
 mod anagram;
 mod args;
@@ -245,7 +249,7 @@ async fn main() -> AnyResult<()> {
     client.data.write().await.insert::<TasksKey>(tasks);
     println!("Cached tasks.");
     // Create a channel for the bot thread to be able to send new tasks to the main thread.
-    let (send, recv) = unbounded();
+    let (send, recv) = unbounded_channel();
     client.data.write().await.insert::<TaskSenderKey>(send);
     // Spawn a ctrl+c handler here and have it send the proper instructions n' stuff.
     // todo
@@ -253,7 +257,7 @@ async fn main() -> AnyResult<()> {
     println!("Starting task handling loop.");
     let data_clone = client.data.clone();
     let http_clone = client.cache_and_http.http.clone();
-    std::thread::spawn(async || start_task_handler(data_clone, http_clone, recv).await);
+    tokio::spawn(start_task_handler(data_clone, http_clone, recv));
     // Start the client.
     println!("Starting client.");
     if let Err(why) = client.start().await {
@@ -262,14 +266,17 @@ async fn main() -> AnyResult<()> {
     Ok(())
 }
 
-async fn start_task_handler(data: Arc<RwLock<TypeMap>>, http: Arc<Http>, recv: Receiver<TaskType>) -> AnyResult<()> {
+async fn start_task_handler(
+    data: Arc<RwLock<TypeMap>>,
+    http: Arc<Http>,
+    mut recv: UnboundedReceiver<TaskType>,
+) -> AnyResult<()> {
+    let mut interval = interval(Duration::from_millis(500));
     loop {
-        let end = Instant::now()
-            .checked_add(Duration::from_millis(500))
-            .unwrap();
         // Get write lock on context data.
-        let mut context_data = data.write().await;
-        let tasks = context_data.get_mut::<TasksKey>().unwrap();
+        let context_data = data.read().await;
+        let mut tasks = context_data.get::<TasksKey>().unwrap().clone();
+        drop(context_data);
         let mut made_changes = false;
         // Check for new tasks.
         while let Ok(task) = recv.try_recv() {
@@ -280,9 +287,7 @@ async fn start_task_handler(data: Arc<RwLock<TypeMap>>, http: Arc<Http>, recv: R
         // Check whether any current tasks need to be executed.
         for i in (0..tasks.len()).rev() {
             if tasks[i].time_to_act() {
-                tasks[i]
-                    .act(&data, &http)
-                    .await?;
+                tasks[i].act(&data, &http).await?;
                 if tasks[i].is_gulag() {
                     println!("TL | Gulag period has elapsed - removing from task list.");
                     tasks.remove(i);
@@ -290,20 +295,20 @@ async fn start_task_handler(data: Arc<RwLock<TypeMap>>, http: Arc<Http>, recv: R
                 }
             }
         }
-        drop(context_data);
         if made_changes {
             println!("TL | Changes to task list were made.");
+            println!("TL | Assigning context task list to changed list.");
+            let mut context_data = data.write().await;
+            *context_data.get_mut::<TasksKey>().unwrap() = tasks;
+            drop(context_data);
             println!("TL | Serializing task list and writing to task file.");
             let context_data = data.read().await;
             let tasks = context_data.get::<TasksKey>().unwrap();
             let tasks_path = context_data.get::<ConfigKey>().unwrap().tasks_file.as_str();
-            let mut tasks_file = File::create(tasks_path).unwrap();
+            let mut tasks_file = AsyncFile::create(tasks_path).await?;
             let new_contents = serde_json::to_string_pretty(tasks).unwrap();
-            tasks_file.write_all(new_contents.as_bytes()).unwrap();
+            tasks_file.write_all(new_contents.as_bytes()).await?;
         }
-        let sleep_for = end.duration_since(Instant::now());
-        if sleep_for > Duration::from_secs(0) {
-            sleep(sleep_for);
-        }
+        interval.tick().await;
     }
 }

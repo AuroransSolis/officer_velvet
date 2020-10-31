@@ -7,7 +7,7 @@ use anyhow::Result as AnyResult;
 use chrono::{prelude::*, Duration};
 use serenity::{
     framework::standard::{macros::command, CommandResult},
-    model::{channel::Message, guild::Member, id::UserId, user::User},
+    model::{channel::Message, id::UserId},
     prelude::*,
 };
 use std::{
@@ -143,7 +143,10 @@ pub async fn gulag(ctx: &Context, message: &Message) -> CommandResult {
                     let mut context_data = ctx.data.write().await;
                     println!("    Getting tasks list.");
                     let tasks = context_data.get_mut::<TasksKey>().unwrap();
-                    println!("    Checking for existing gulag entries for user ID {}", user_id);
+                    println!(
+                        "    Checking for existing gulag entries for user ID {}",
+                        user_id
+                    );
                     // Check if any gulags exist for this user presently, and if they do, update the
                     // end time.
                     if let Some(gulag) = tasks.iter_mut().find_map(|task| match task {
@@ -157,30 +160,33 @@ pub async fn gulag(ctx: &Context, message: &Message) -> CommandResult {
                         println!("        Getting guild ID.");
                         let guild_id = context_data.get::<ConfigKey>().unwrap().guild_id;
                         println!("        Getting member information.");
-                        let member = match ctx.http.get_member(guild_id.into(), user_id.into()).await {
-                            Ok(member) => Ok(member),
-                            Err(err) => {
-                                println!("        Failed to get member information. Notifying user.");
-                                let content = format!(
-                                    "Failed to get member information. Error details:\n{}",
-                                    err
-                                );
-                                let _ = message.reply(&ctx.http, content.as_str()).await?;
-                                Err(err)
-                            }
-                        }?;
-                        let Member {
-                            user: User { name, .. },
-                            roles: role_ids,
-                            ..
-                        } = member;
-                        println!("        Successfully retrieved member information for '{}' (ID {})", name, user_id);
-                        let user = (name, user_id);
+                        let mut member =
+                            match ctx.http.get_member(guild_id.into(), user_id.into()).await {
+                                Ok(member) => Ok(member),
+                                Err(err) => {
+                                    println!(
+                                        "        Failed to get member information. Notifying user."
+                                    );
+                                    let content = format!(
+                                        "Failed to get member information. Error details:\n{}",
+                                        err
+                                    );
+                                    let _ = message.reply(&ctx.http, content.as_str()).await?;
+                                    Err(err)
+                                }
+                            }?;
+                        println!(
+                            "        Successfully retrieved member information for '{}' (ID {})",
+                            member.display_name(), member.user.id,
+                        );
+                        let user = (member.display_name().clone().into_owned(), user_id);
                         println!("        Fetching guild information.");
                         let guild = match ctx.http.get_guild(guild_id.into()).await {
                             Ok(guild) => Ok(guild),
                             Err(err) => {
-                                println!("        Failed to get guild information. Notifying user.");
+                                println!(
+                                    "        Failed to get guild information. Notifying user."
+                                );
                                 let content = format!(
                                     "Failed to fetch guild information to save roles. Details:\n{}",
                                     err
@@ -192,10 +198,9 @@ pub async fn gulag(ctx: &Context, message: &Message) -> CommandResult {
                         println!("        Successfully retrieved guild information.");
                         let roles_map = guild.roles;
                         println!("        Mapping user IDs to role names.");
-                        let roles = role_ids
-                            .clone()
-                            .into_iter()
-                            .map(|role_id| {
+                        let roles = member.roles
+                            .iter()
+                            .map(|&role_id| {
                                 (
                                     roles_map
                                         .get(&role_id)
@@ -229,12 +234,12 @@ pub async fn gulag(ctx: &Context, message: &Message) -> CommandResult {
                         println!("        Getting gulag role ID.");
                         let gulag_id = context_data.get::<ConfigKey>().unwrap().prisoner_role_id;
                         println!("        Removing user's roles.");
-                        for role_id in role_ids {
-                            println!("            Removing role ID {}", role_id);
-                            ctx.http.remove_member_role(guild_id.into(), user_id.into(), role_id.into()).await?;
-                        }
+                        let roles = member.roles.clone();
+                        member.remove_roles(&ctx.http, &roles).await?;
                         println!("        Adding prisoner role.");
-                        ctx.http.add_member_role(guild_id.into(), user_id.into(), gulag_id.into()).await?;
+                        ctx.http
+                            .add_member_role(guild_id.into(), user_id.into(), gulag_id.into())
+                            .await?;
                         println!("        Successfully gulagged user.");
                     }
                 }

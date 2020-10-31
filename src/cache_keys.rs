@@ -1,9 +1,9 @@
 use crate::{Config, TaskType};
-use crossbeam_channel::Sender;
 use serenity::{
     model::{guild::Role, id::UserId},
     prelude::*,
 };
+use tokio::sync::mpsc::UnboundedSender;
 
 pub struct BotIdKey;
 
@@ -44,5 +44,5 @@ impl TypeMapKey for TasksKey {
 pub struct TaskSenderKey;
 
 impl TypeMapKey for TaskSenderKey {
-    type Value = Sender<TaskType>;
+    type Value = UnboundedSender<TaskType>;
 }
