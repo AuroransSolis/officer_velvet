@@ -1,5 +1,6 @@
 use crate::{
     cache_keys::{ConfigKey, TasksKey},
+    misc::{insufficient_perms, is_administrator},
     tasks::TaskType,
 };
 use serenity::{
@@ -15,19 +16,12 @@ use std::time::Instant;
 pub async fn current_gulags(ctx: &Context, message: &Message) -> CommandResult {
     println!("Start handling current-gulags command.");
     let start = Instant::now();
-    println!("    Getting user's roles.");
-    let user_roles = message.member(&ctx.http).await?.roles;
     println!("    Grabbing read 'lock' on context data.");
     let context_data = ctx.data.read().await;
     println!("    Checking permissions.");
-    if context_data
-        .get::<ConfigKey>()
-        .unwrap()
-        .elevated_roles
-        .iter()
-        .any(|(_, role_id)| user_roles.contains(role_id))
-    {
+    if is_administrator(&ctx.http, context_data, message).await? {
         println!("    User has sufficient permissions.");
+        let context_data = ctx.data.read().await;
         let gulags = context_data
             .get::<TasksKey>()
             .unwrap()
@@ -67,12 +61,7 @@ pub async fn current_gulags(ctx: &Context, message: &Message) -> CommandResult {
             .await?;
         println!("    Sent gulags list.");
     } else {
-        println!("    User has insufficient permissions. Notifying and returning.");
-        let _ = message.reply(
-            &ctx.http,
-            "You'd best slide me over a bit of the good-good, comrade, or the officers will hear \
-            about your attempt to usurp authority."
-        ).await?;
+        insufficient_perms(ctx, message).await?;
     }
     println!("    Elapsed: {:?}", start.elapsed());
     Ok(())

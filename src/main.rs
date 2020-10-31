@@ -23,13 +23,16 @@ mod args;
 mod cache_keys;
 mod config;
 mod current_gulags;
+mod gulag;
 mod handler;
+mod misc;
 mod tasks;
 
 use anagram::*;
 use cache_keys::*;
 use config::Config;
 use current_gulags::*;
+use gulag::*;
 use handler::{after, Handler};
 use tasks::TaskType;
 
@@ -40,7 +43,6 @@ mod help;
 use help::Help;
 mod gulag_handling;
 use gulag_handling::*;
-use misc::*;
 mod remove_gulag_info;
 use remove_gulag_info::RemoveGulagInfo;
 use anagram::Anagram;
@@ -72,7 +74,7 @@ pub const MIN_AS_SECS: u64 = 60;*/
 struct GeneralCommands;
 
 #[group]
-#[commands(current_gulags)]
+#[commands(current_gulags, gulag)]
 struct AdminCommands;
 
 #[tokio::main]
@@ -193,9 +195,13 @@ async fn main() -> AnyResult<()> {
     println!("Found elevated roles.");
     println!("Checking whether it is necessary to update elevated role names or IDs");
     // Update role name and/or ID for each role in config if necessary, and write out to file.
-    if elevated_roles.iter()
+    if elevated_roles
+        .iter()
         .map(|role| {
-            println!("    Checking config values for role '{}' (ID {})", role.name, role.id);
+            println!(
+                "    Checking config values for role '{}' (ID {})",
+                role.name, role.id
+            );
             let config = config
                 .elevated_roles
                 .iter_mut()
@@ -234,11 +240,7 @@ async fn main() -> AnyResult<()> {
         .await
         .insert::<ElevatedRolesKey>(elevated_roles);
     // Cache the config.
-    client
-        .data
-        .write()
-        .await
-        .insert::<ConfigKey>(config);
+    client.data.write().await.insert::<ConfigKey>(config);
     // Cache the tasks - they may need to be updated depending on role changes and such.
     client.data.write().await.insert::<TasksKey>(tasks);
     println!("Cached tasks.");

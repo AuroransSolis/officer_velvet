@@ -11,6 +11,10 @@ pub struct Gulag {
 }
 
 impl Gulag {
+    pub fn new(user: (String, UserId), roles: Vec<(String, RoleId)>, end: DateTime<Utc>) -> Self {
+        Gulag { user, roles, end }
+    }
+
     pub fn time_to_act(&self) -> bool {
         self.end >= Utc::now()
     }
