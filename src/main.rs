@@ -1,12 +1,16 @@
+#![feature(async_closure)]
+
 use anyhow::Result as AnyResult;
-use crossbeam_channel::unbounded;
+use crossbeam_channel::{unbounded, Receiver};
 use serenity::{
     framework::{standard::macros::group, StandardFramework},
+    http::client::Http,
     prelude::*,
 };
 use std::{
     fs::{self, File},
     io::{Error as IoError, ErrorKind as IoErrorKind, Write},
+    sync::Arc,
     thread::sleep,
     time::{Duration, Instant},
 };
@@ -245,22 +249,28 @@ async fn main() -> AnyResult<()> {
     client.data.write().await.insert::<TaskSenderKey>(send);
     // Spawn a ctrl+c handler here and have it send the proper instructions n' stuff.
     // todo
+    // Start the task handling loop in a separate thread.
+    println!("Starting task handling loop.");
+    let data_clone = client.data.clone();
+    let http_clone = client.cache_and_http.http.clone();
+    std::thread::spawn(async || start_task_handler(data_clone, http_clone, recv).await);
     // Start the client.
     println!("Starting client.");
     if let Err(why) = client.start().await {
         println!("Client error: {:?}", why);
     }
-    println!("Started client.");
-    println!("Entering task handling loop.");
-    // Start task handling loop.
+    Ok(())
+}
+
+async fn start_task_handler(data: Arc<RwLock<TypeMap>>, http: Arc<Http>, recv: Receiver<TaskType>) -> AnyResult<()> {
     loop {
         let end = Instant::now()
             .checked_add(Duration::from_millis(500))
             .unwrap();
         // Get write lock on context data.
-        let mut context_data = client.data.write().await;
+        let mut context_data = data.write().await;
         let tasks = context_data.get_mut::<TasksKey>().unwrap();
-        let mut made_changes = true;
+        let mut made_changes = false;
         // Check for new tasks.
         while let Ok(task) = recv.try_recv() {
             println!("TL | Received new task - pushing to task list.");
@@ -271,7 +281,7 @@ async fn main() -> AnyResult<()> {
         for i in (0..tasks.len()).rev() {
             if tasks[i].time_to_act() {
                 tasks[i]
-                    .act(&client.data, &client.cache_and_http.http)
+                    .act(&data, &http)
                     .await?;
                 if tasks[i].is_gulag() {
                     println!("TL | Gulag period has elapsed - removing from task list.");
@@ -284,12 +294,12 @@ async fn main() -> AnyResult<()> {
         if made_changes {
             println!("TL | Changes to task list were made.");
             println!("TL | Serializing task list and writing to task file.");
-            let context_data = client.data.read().await;
+            let context_data = data.read().await;
             let tasks = context_data.get::<TasksKey>().unwrap();
             let tasks_path = context_data.get::<ConfigKey>().unwrap().tasks_file.as_str();
-            let mut tasks_file = File::create(tasks_path)?;
-            let new_contents = serde_json::to_string_pretty(tasks)?;
-            tasks_file.write_all(new_contents.as_bytes())?;
+            let mut tasks_file = File::create(tasks_path).unwrap();
+            let new_contents = serde_json::to_string_pretty(tasks).unwrap();
+            tasks_file.write_all(new_contents.as_bytes()).unwrap();
         }
         let sleep_for = end.duration_since(Instant::now());
         if sleep_for > Duration::from_secs(0) {
