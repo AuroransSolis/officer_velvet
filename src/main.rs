@@ -28,6 +28,7 @@ mod current_gulags;
 mod gulag;
 mod handler;
 mod misc;
+mod source;
 mod tasks;
 
 use anagram::*;
@@ -36,12 +37,13 @@ use config::Config;
 use current_gulags::*;
 use gulag::*;
 use handler::{after, Handler};
+use source::*;
 use tasks::TaskType;
 
 pub const FILES_DIR: &str = "files/";
 
 #[group]
-#[commands(anagram)]
+#[commands(anagram, source)]
 struct GeneralCommands;
 
 #[group]
