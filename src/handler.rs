@@ -15,7 +15,7 @@ pub struct Handler;
 impl EventHandler for Handler {
     async fn message(&self, context: Context, message: Message) {
         if message.author.id != *context.data.read().await.get::<BotIdKey>().unwrap() {
-            println!("Begin handling sent message.");
+            println!("HL | Begin handling sent message.");
             // Get a lock on the data by holding onto the result of `write`.
             let mut data = context.data.write().await;
             // Get the task list.

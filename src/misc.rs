@@ -10,7 +10,7 @@ pub async fn is_administrator(
     context_data: RwLockReadGuard<'_, TypeMap>,
     message: &Message,
 ) -> Result<bool> {
-    println!("    Getting user's roles.");
+    println!("CK | Getting user's roles.");
     let user_roles = message.member(http).await?.roles;
     Ok(context_data
         .get::<ConfigKey>()

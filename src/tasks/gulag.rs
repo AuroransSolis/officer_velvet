@@ -41,16 +41,26 @@ impl Gulag {
         } = context_data.get::<ConfigKey>().unwrap();
         let guild_id = *guild_id.as_u64();
         let gulag_id = *prisoner_role_id.as_u64();
-        println!("TL | GL | Got guild ID {} and prisoner role ID {}", guild_id, gulag_id);
+        println!(
+            "TL | GL | Got guild ID {} and prisoner role ID {}",
+            guild_id, gulag_id
+        );
         println!("TL | GL | Getting member information.");
         let mut member = http.get_member(guild_id, self.user.1.into()).await?;
         println!("TL | GL | Removing prisoner role.");
         member.remove_role(http, gulag_id).await?;
         println!("TL | GL | Getting list of role IDs to add back to user.");
-        let role_ids = self.roles.iter().map(|&(_, role_id)| role_id).collect::<Vec<_>>();
+        let role_ids = self
+            .roles
+            .iter()
+            .map(|&(_, role_id)| role_id)
+            .collect::<Vec<_>>();
         println!("TL | GL | Adding roles back to user.");
         member.add_roles(http, &role_ids).await?;
-        println!("TL | GL | Successfully un-gulagged user in {:?}.", start.elapsed());
+        println!(
+            "TL | GL | Successfully un-gulagged user in {:?}.",
+            start.elapsed()
+        );
         Ok(())
     }
 }
