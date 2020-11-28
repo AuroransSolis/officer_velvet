@@ -25,8 +25,13 @@ fn parse_user_id_from_mention(s: &str) -> AnyResult<UserId> {
 }
 
 #[derive(Clone, Debug, StructOpt)]
-#[structopt(settings(&[AppSettings::ColorNever, AppSettings::NoBinaryName]))]
-struct GulagApp {
+#[structopt(
+    name = "Gulag",
+    about = "Sends a user to gulag",
+    author = "Aurorans Solis",
+    settings(&[AppSettings::ColorNever, AppSettings::NoBinaryName])
+)]
+pub(crate) struct GulagApp {
     #[structopt(
         short = "u",
         long = "user",
