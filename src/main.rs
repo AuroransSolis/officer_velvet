@@ -27,6 +27,7 @@ mod config;
 mod current_gulags;
 mod gulag;
 mod handler;
+mod help;
 mod misc;
 mod source;
 mod tasks;
