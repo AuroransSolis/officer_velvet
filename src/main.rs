@@ -38,13 +38,14 @@ use config::Config;
 use current_gulags::*;
 use gulag::*;
 use handler::{after, Handler};
+use help::*;
 use source::*;
 use tasks::TaskType;
 
 pub const FILES_DIR: &str = "files/";
 
 #[group]
-#[commands(anagram, source)]
+#[commands(anagram, help, source)]
 struct GeneralCommands;
 
 #[group]
