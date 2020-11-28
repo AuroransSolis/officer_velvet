@@ -18,7 +18,7 @@ version = "0.2"
 features = ["fs", "macros", "signal", "time"]
 
 [dependencies.serenity]
-version = "0.9.0"
+version = "0.9.1"
 features = ["cache", "framework", "rustls_backend", "standard_framework"]
 
 # [patch.crates-io]
