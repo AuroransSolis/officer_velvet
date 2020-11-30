@@ -1,5 +1,5 @@
 use crate::{
-    cache_keys::{ConfigKey, TasksKey},
+    cache_keys::TasksKey,
     misc::{insufficient_perms, is_administrator},
     tasks::TaskType,
 };
@@ -14,15 +14,17 @@ use std::time::Instant;
 #[command]
 #[aliases("current-gulags")]
 pub async fn current_gulags(ctx: &Context, message: &Message) -> CommandResult {
-    println!("Start handling current-gulags command.");
+    println!("CG | Start handling current-gulags command.");
     let start = Instant::now();
-    println!("    Grabbing read 'lock' on context data.");
+    println!("CG | Grabbing read 'lock' on context data.");
     let context_data = ctx.data.read().await;
-    println!("    Checking permissions.");
+    println!("CG | Checking permissions.");
     if is_administrator(&ctx.http, context_data, message).await? {
-        println!("    User has sufficient permissions.");
-        let context_data = ctx.data.read().await;
-        let gulags = context_data
+        println!("CG | User has sufficient permissions.");
+        let mut msg = String::new();
+        ctx.data
+            .read()
+            .await
             .get::<TasksKey>()
             .unwrap()
             .iter()
@@ -30,28 +32,25 @@ pub async fn current_gulags(ctx: &Context, message: &Message) -> CommandResult {
                 TaskType::Gulag(gulag) => Some(gulag),
                 _ => None,
             })
-            .collect::<Vec<_>>();
-        println!("    Got list of active gulag sentences.");
-        let msg = if gulags.is_empty() {
-            "Nobody is currently gulagged.".into()
-        } else {
-            let mut msg = String::new();
-            for gulag in gulags {
+            .for_each(|gulag| {
                 msg.push_str(&gulag.to_string());
                 msg.push('\n');
-            }
-            msg.trim_end().to_string()
+            });
+        let msg = if msg.is_empty() {
+            "Nobody is currently gulagged."
+        } else {
+            msg.trim()
         };
-        println!("    Formatted gulag sentences.");
-        let icon_url = context_data.get::<ConfigKey>().unwrap().icon_url.as_str();
-        println!("    Retrieved icon URL.");
+        println!("CG | Formatted gulag sentences.");
+        let icon_url = ctx.http.get_current_user().await?.avatar_url().unwrap();
+        println!("CG | Retrieved icon URL.");
         let _ = message
             .channel_id
             .send_message(&ctx.http, |m| {
                 m.embed(|e| {
                     e.title("Prisoner List")
                         .colour(Colour::from_rgb(243, 44, 115))
-                        .field("Report from the tundra", msg.as_str(), false)
+                        .field("Report from the tundra", msg, false)
                         .footer(|f| {
                             f.text("Your friendly, neighbourhood gulag officer, Officer Velvet")
                                 .icon_url(icon_url)
@@ -59,10 +58,10 @@ pub async fn current_gulags(ctx: &Context, message: &Message) -> CommandResult {
                 })
             })
             .await?;
-        println!("    Sent gulags list.");
+        println!("CG | Sent gulags list.");
     } else {
         insufficient_perms(ctx, message).await?;
     }
-    println!("    Elapsed: {:?}", start.elapsed());
+    println!("CG | Elapsed: {:?}", start.elapsed());
     Ok(())
 }
