@@ -106,13 +106,16 @@ pub async fn create_task(ctx: &Context, message: &Message) -> CommandResult {
                 println!("CT | User didn't provide all arguments, or failed to match format.");
                 match message.content.to_lowercase().as_str() {
                     "=>create_task -h" | "=>create_task --help" => {
-                        let msg = format!("Error parsing command. Details:\n```{}```", CREATE_TASK_HELP_MSG.as_str());
+                        let msg = format!(
+                            "Error parsing command. Details:\n{}",
+                            CREATE_TASK_HELP_MSG.as_str()
+                        );
                         message
                             .channel_id
                             .send_message(&ctx.http, |message| message.content(&msg))
                             .await?;
                         return Ok(());
-                    },
+                    }
                     _ => {
                         message
                             .reply(
@@ -127,8 +130,8 @@ pub async fn create_task(ctx: &Context, message: &Message) -> CommandResult {
                 }
             }
             &[(subcommand, task)] => {
-                println!("CT | Valid user input.");
-                let mut subcommand = match try_get_createtask(subcommand) {
+                println!("CT | Valid user input. Subcommand: '{}'", subcommand);
+                let mut subcommand = match try_get_createtask(subcommand.trim()) {
                     Ok(subcommand) => subcommand.create()?,
                     Err(err) => {
                         println!("CT | Failed to parse user input. Sending error back.");
