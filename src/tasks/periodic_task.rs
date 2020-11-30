@@ -16,8 +16,8 @@ use structopt::{clap::AppSettings, StructOpt};
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct PeriodicTask {
     pub task: Task,
-    pub last_sent: NaiveDate,
-    pub next_send: NaiveDate,
+    pub last_sent: NaiveDateTime,
+    pub next_send: NaiveDateTime,
 }
 
 impl PeriodicTask {
@@ -32,12 +32,12 @@ impl PeriodicTask {
     }
 
     pub fn time_to_act(&self) -> bool {
-        Utc::now().naive_utc().date() >= self.next_send
+        Utc::now().naive_utc() >= self.next_send
     }
 
     pub async fn act(&mut self, data: &Arc<RwLock<TypeMap>>, http: &Arc<Http>) -> AnyResult<()> {
         self.task.act(data, http).await?;
-        while self.next_send <= Utc::now().date().naive_utc() {
+        while self.next_send <= Utc::now().naive_utc() {
             self.elapse_period()?;
         }
         Ok(())
@@ -53,7 +53,7 @@ pub struct CreatePeriodicTask {
     #[structopt(skip)]
     pub task: Task,
     #[structopt(long = "start", name = "start_sending")]
-    pub start: NaiveDate,
+    pub start: NaiveDateTime,
     #[structopt(flatten)]
     pub duration: CreateTimePeriod,
 }
