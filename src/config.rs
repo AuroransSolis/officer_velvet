@@ -6,7 +6,9 @@ use std::default::Default;
 pub struct Config {
     pub tasks_file: String,
     pub bot_id: String,
-    pub icon_url: String,
+    pub files_dir: String,
+    pub icon_filename: String,
+    pub leaderboard_filename: String,
     pub guild_id: GuildId,
     pub elevated_roles: Vec<(String, RoleId)>,
     pub prisoner_role_name: String,
@@ -18,7 +20,9 @@ impl Default for Config {
         Config {
             tasks_file: "".into(),
             bot_id: "".into(),
-            icon_url: "".into(),
+            files_dir: "files".into(),
+            icon_filename: "default.png".into(),
+            leaderboard_filename: "leaderboard".into(),
             guild_id: 0.into(),
             elevated_roles: Vec::new(),
             prisoner_role_name: "".into(),
