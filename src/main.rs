@@ -49,6 +49,8 @@ struct GeneralCommands;
 #[commands(create_task, current_gulags, gulag)]
 struct AdminCommands;
 
+pub const FOOTER_TEXT: &str = "Your friendly neighbourhood gulag officer, Officer Velvet";
+
 #[tokio::main]
 async fn main() -> AnyResult<()> {
     let args::Args { config_file_path } = args::Args::from_args();
