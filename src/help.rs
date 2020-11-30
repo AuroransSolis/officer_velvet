@@ -1,8 +1,4 @@
-use crate::{
-    cache_keys::ConfigKey,
-    gulag::GulagApp,
-    misc::is_administrator,
-};
+use crate::{gulag::GulagApp, misc::is_administrator};
 use serenity::{
     client::Context,
     framework::standard::{macros::command, CommandResult},
@@ -17,14 +13,7 @@ pub async fn help(ctx: &Context, message: &Message) -> CommandResult {
     println!("HL | Start handling help command.");
     let start = Instant::now();
     let is_administrator = is_administrator(&ctx.http, ctx.data.read().await, message).await?;
-    let icon_url = ctx
-        .data
-        .read()
-        .await
-        .get::<ConfigKey>()
-        .unwrap()
-        .icon_url
-        .clone();
+    let icon_url = ctx.http.get_current_user().await?.avatar_url().unwrap();
     let _ = message
         .channel_id
         .send_message(&ctx.http, |msg| {
@@ -47,8 +36,9 @@ pub async fn help(ctx: &Context, message: &Message) -> CommandResult {
                     });
                 if is_administrator {
                     println!("HL | CE | User is administrator - adding admin commands to embed.");
-                    let mut help_string = Vec::new();
+                    let mut help_string = vec![b'`'; 3];
                     GulagApp::clap().write_help(&mut help_string).unwrap();
+                    help_string.extend_from_slice(&[b'`'; 3]);
                     embed.field("=>gulag", String::from_utf8(help_string).unwrap(), false);
                 }
                 println!("HL | CE | Created embed.");
