@@ -65,7 +65,6 @@ lazy_static! {
 #[derive(Clone, Debug, StructOpt)]
 #[structopt(
     name = "Create Task",
-    author = "Aurorans Solis",
     settings(&[AppSettings::ColorNever, AppSettings::NoBinaryName]),
 )]
 pub enum CreateTaskType {

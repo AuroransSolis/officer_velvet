@@ -47,7 +47,6 @@ impl PeriodicTask {
 #[derive(Clone, Debug, StructOpt)]
 #[structopt(
     name = "Create Periodic Task",
-    author = "Aurorans Solis",
     settings(&[AppSettings::ColorNever, AppSettings::NoBinaryName]),
 )]
 pub struct CreatePeriodicTask {

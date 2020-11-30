@@ -17,7 +17,6 @@ use structopt::{clap::AppSettings, StructOpt};
 #[structopt(
     name = "Gulag",
     about = "Sends a user to gulag",
-    author = "Aurorans Solis",
     settings(&[AppSettings::ColorNever, AppSettings::NoBinaryName])
 )]
 pub(crate) struct GulagApp {

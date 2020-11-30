@@ -87,7 +87,6 @@ impl<'a> PartialEq<DateTime<Utc>> for &'a DateCondition {
 #[derive(Clone, Debug, Deserialize, Serialize, StructOpt)]
 #[structopt(
     name = "Date Conditional Task",
-    author = "Aurorans Solis",
     settings(&[AppSettings::ColorNever, AppSettings::NoBinaryName]),
 )]
 pub struct DateConditionalTask {

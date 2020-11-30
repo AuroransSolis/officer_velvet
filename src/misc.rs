@@ -38,8 +38,6 @@ pub async fn insufficient_perms(ctx: &Context, message: &Message) -> AnyResult<(
 #[derive(Clone, Debug, StructOpt)]
 #[structopt(
     name = "Create Time Period",
-    about = "Converts a ",
-    author = "Aurorans Solis",
     settings(&[AppSettings::ColorNever, AppSettings::NoBinaryName])
 )]
 pub struct CreateTimePeriod {
