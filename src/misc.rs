@@ -3,10 +3,22 @@ use anyhow::Result as AnyResult;
 use chrono::{DateTime, Duration, Utc};
 use serenity::{http::CacheHttp, model::channel::Message, prelude::*};
 use std::io::{Error as IoError, ErrorKind};
-use structopt::{clap::AppSettings, StructOpt};
+use structopt::{
+    clap::{App, AppSettings},
+    StructOpt,
+};
 use tokio::sync::RwLockReadGuard;
 
 // This file just contains some QoL stuff. Nothing important.
+
+pub fn escape_formatting<S: AsRef<str>>(s: S) -> String {
+    s.as_ref()
+        .replace("*", "\\*")
+        .replace("|", "\\*")
+        .replace("_", "\\*")
+        .replace("~", "\\~")
+        .replace("`", "\\`")
+}
 
 pub async fn is_administrator(
     http: impl CacheHttp,
@@ -164,4 +176,11 @@ impl CreateTimePeriod {
             })
         }
     }
+}
+
+pub fn get_help_msg(app: App) -> String {
+    let mut help_string = vec![b'`'; 3];
+    app.write_help(&mut help_string).unwrap();
+    help_string.extend_from_slice(&[b'`'; 3]);
+    String::from_utf8(help_string).unwrap()
 }

@@ -1,3 +1,4 @@
+use crate::misc::escape_formatting;
 use rand::{seq::SliceRandom, thread_rng};
 use serenity::{
     framework::standard::{macros::command, CommandResult},
@@ -40,12 +41,7 @@ pub async fn anagram(ctx: &Context, message: &Message) -> CommandResult {
             println!("    Collected trimmed message into Vec<char>.");
             scrambled.shuffle(&mut thread_rng());
             println!("    Shuffled message.");
-            let scrambled = scrambled.into_iter().collect::<String>();
-            let scrambled = scrambled.replace("*", "\\*");
-            let scrambled = scrambled.replace("|", "\\*");
-            let scrambled = scrambled.replace("_", "\\*");
-            let scrambled = scrambled.replace("~", "\\~");
-            let scrambled = scrambled.replace("`", "\\`");
+            let scrambled = escape_formatting(scrambled.into_iter().collect::<String>());
             println!("    Collected shuffled characters into string.");
             let msg = format!(
                 "Hey guys, did you know that \"{}\" is an anagram of \"{}\"?",
