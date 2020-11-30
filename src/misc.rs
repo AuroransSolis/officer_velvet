@@ -31,10 +31,3 @@ pub async fn insufficient_perms(ctx: &Context, message: &Message) -> Result<()> 
         .await?;
     Ok(())
 }
-
-/*pub fn delete_message_after_delay(message: Message, delay: u64) {
-    thread::spawn(move || {
-        sleep(Duration::from_secs(delay));
-        let _ = message.delete();
-    });
-}*/
