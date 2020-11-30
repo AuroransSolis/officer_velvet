@@ -1,5 +1,3 @@
-#![feature(async_closure)]
-
 use anyhow::Result as AnyResult;
 use serenity::{
     framework::{standard::macros::group, StandardFramework},
@@ -28,6 +26,7 @@ mod current_gulags;
 mod gulag;
 mod handler;
 mod help;
+mod leaderboard;
 mod misc;
 mod source;
 mod tasks;
@@ -40,16 +39,14 @@ use gulag::*;
 use handler::{after, Handler};
 use help::*;
 use source::*;
-use tasks::TaskType;
-
-pub const FILES_DIR: &str = "files/";
+use tasks::*;
 
 #[group]
 #[commands(anagram, help, source)]
 struct GeneralCommands;
 
 #[group]
-#[commands(current_gulags, gulag)]
+#[commands(create_task, current_gulags, gulag)]
 struct AdminCommands;
 
 #[tokio::main]

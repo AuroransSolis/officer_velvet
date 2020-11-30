@@ -10,11 +10,20 @@ use std::{
     io::{Error as IoError, ErrorKind},
     sync::Arc,
 };
+use structopt::{clap::AppSettings, StructOpt};
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize, StructOpt)]
+#[structopt(
+    name = "Periodic Task",
+    author = "Aurorans Solis",
+    settings(&[AppSettings::ColorNever, AppSettings::NoBinaryName]),
+)]
 pub struct PeriodicTask {
+    #[structopt(skip)]
     pub task: Task,
+    #[structopt(short = "l", long = "last_sent", alias("ls"), name = "last_sent")]
     pub last_sent: NaiveDate,
+    #[structopt(short = "n", long = "next_send", alias("ns"), name = "next_send")]
     pub next_send: NaiveDate,
 }
 

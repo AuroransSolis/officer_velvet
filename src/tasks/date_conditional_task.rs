@@ -6,17 +6,58 @@ use serenity::{
     http::client::Http,
     prelude::{RwLock, TypeMap},
 };
-use std::{cmp::PartialEq, sync::Arc};
+use std::{
+    cmp::PartialEq,
+    io::{Error as IoError, ErrorKind},
+    sync::Arc,
+};
+use structopt::{clap::AppSettings, StructOpt};
 
 fn time_eq_to_mins(t1: NaiveTime, t2: NaiveTime) -> bool {
     t1.hour() == t2.hour() && t1.minute() == t2.minute()
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+fn parse_weekday(s: &str) -> AnyResult<Weekday> {
+    match s.to_lowercase().as_str() {
+        "m" | "mon" | "monday" => Ok(Weekday::Mon),
+        "t" | "tue" | "tuesday" => Ok(Weekday::Tue),
+        "w" | "wed" | "wednesday" => Ok(Weekday::Wed),
+        "th" | "thu" | "thursday" => Ok(Weekday::Thu),
+        "f" | "fri" | "friday" => Ok(Weekday::Fri),
+        "s" | "sat" | "saturday" => Ok(Weekday::Sat),
+        "su" | "sun" | "sunday" => Ok(Weekday::Sun),
+        _ => Err(IoError::new(
+            ErrorKind::InvalidInput,
+            format!("Invalid weekday '{}'", s).as_str(),
+        )
+        .into()),
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, StructOpt)]
 pub struct DateCondition {
+    #[structopt(short = "t", long = "time", name = "time")]
     pub time: Option<NaiveTime>,
+    #[structopt(
+        short = "w",
+        long = "weekday",
+        name = "weekday",
+        parse(try_from_str = parse_weekday))
+    ]
     pub weekday: Option<Weekday>,
+    #[structopt(
+        short = "d",
+        long = "day_of_month",
+        alias("dom"),
+        name = "day_of_month"
+    )]
     pub day_of_month: Option<u32>,
+    #[structopt(
+        short = "m",
+        long = "month_of_year",
+        alias("moy"),
+        name = "month_of_year"
+    )]
     pub month_of_year: Option<u32>,
 }
 
@@ -43,10 +84,17 @@ impl<'a> PartialEq<DateTime<Utc>> for &'a DateCondition {
     }
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize, StructOpt)]
+#[structopt(
+    name = "Date Conditional Task",
+    author = "Aurorans Solis",
+    settings(&[AppSettings::ColorNever, AppSettings::NoBinaryName]),
+)]
 pub struct DateConditionalTask {
-    task: Task,
-    condition: DateCondition,
+    #[structopt(skip)]
+    pub task: Task,
+    #[structopt(flatten)]
+    pub condition: DateCondition,
 }
 
 impl DateConditionalTask {
