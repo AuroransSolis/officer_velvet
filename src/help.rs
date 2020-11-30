@@ -1,4 +1,4 @@
-use crate::{gulag::GulagApp, misc::is_administrator};
+use crate::{gulag::GulagApp, misc::is_administrator, tasks::CreateTaskType};
 use serenity::{
     client::Context,
     framework::standard::{macros::command, CommandResult},
@@ -29,6 +29,7 @@ pub async fn help(ctx: &Context, message: &Message) -> CommandResult {
                         "Randomly scrambles the rest of the message.",
                         false,
                     )
+                    .field("=>source", "Sends a link to my code repository.", false)
                     .footer(|footer| {
                         footer
                             .text("Your friendly, neighbourhood gulag officer, Officer Velvet")
@@ -36,10 +37,17 @@ pub async fn help(ctx: &Context, message: &Message) -> CommandResult {
                     });
                 if is_administrator {
                     println!("HL | CE | User is administrator - adding admin commands to embed.");
-                    let mut help_string = vec![b'`'; 3];
-                    GulagApp::clap().write_help(&mut help_string).unwrap();
-                    help_string.extend_from_slice(&[b'`'; 3]);
-                    embed.field("=>gulag", String::from_utf8(help_string).unwrap(), false);
+                    let apps = [
+                        ("=>gulag", GulagApp::clap()),
+                        ("=>create_task", CreateTaskType::clap()),
+                    ];
+                    for (cmd, app) in apps.iter() {
+                        let mut help_string = vec![b'`'; 3];
+                        app.write_help(&mut help_string).unwrap();
+                        help_string.extend_from_slice(&[b'`'; 3]);
+                        embed.field(cmd, String::from_utf8(help_string).unwrap(), false);
+                    }
+                    embed.field("=>current_gulags", "Shows a listing of the current gulag sentences.", false);
                 }
                 println!("HL | CE | Created embed.");
                 embed
