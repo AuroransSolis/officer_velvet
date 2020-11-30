@@ -103,6 +103,7 @@ pub async fn create_task(ctx: &Context, message: &Message) -> CommandResult {
         match &get_ctt_matches(message.content.as_str())[..] {
             &[] => {
                 println!("CT | User didn't provide all arguments, or failed to match format.");
+
                 message
                     .reply(
                         &ctx.http,
@@ -115,7 +116,18 @@ pub async fn create_task(ctx: &Context, message: &Message) -> CommandResult {
             }
             &[(subcommand, task)] => {
                 println!("CT | Valid user input.");
-                let mut subcommand = try_get_createtask(subcommand)?.create()?;
+                let mut subcommand = match try_get_createtask(subcommand) {
+                    Ok(subcommand) => subcommand.create()?,
+                    Err(err) => {
+                        println!("CT | Failed to parse user input. Sending error back.");
+                        let msg = format!("Error parsing command. Details:\n```{}```", err);
+                        message
+                            .channel_id
+                            .send_message(&ctx.http, |message| message.content(&msg))
+                            .await?;
+                        return Ok(());
+                    }
+                };
                 println!("CT | PS | Successfully parsed task type input.");
                 let task = match serde_json::from_str::<Task>(task) {
                     Ok(task) => task,
