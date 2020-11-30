@@ -8,10 +8,7 @@ use serenity::{
     prelude::{RwLock, TypeMap},
     utils::read_image,
 };
-use std::{
-    path::PathBuf,
-    sync::Arc,
-};
+use std::{path::PathBuf, sync::Arc};
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub enum Task {

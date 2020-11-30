@@ -1,4 +1,5 @@
 use super::task::Task;
+use crate::misc::CreateTimePeriod;
 use anyhow::Result as AnyResult;
 use chrono::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -12,18 +13,10 @@ use std::{
 };
 use structopt::{clap::AppSettings, StructOpt};
 
-#[derive(Clone, Debug, Deserialize, Serialize, StructOpt)]
-#[structopt(
-    name = "Periodic Task",
-    author = "Aurorans Solis",
-    settings(&[AppSettings::ColorNever, AppSettings::NoBinaryName]),
-)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct PeriodicTask {
-    #[structopt(skip)]
     pub task: Task,
-    #[structopt(short = "l", long = "last_sent", alias("ls"), name = "last_sent")]
     pub last_sent: NaiveDate,
-    #[structopt(short = "n", long = "next_send", alias("ns"), name = "next_send")]
     pub next_send: NaiveDate,
 }
 
@@ -48,5 +41,36 @@ impl PeriodicTask {
             self.elapse_period()?;
         }
         Ok(())
+    }
+}
+
+#[derive(Clone, Debug, StructOpt)]
+#[structopt(
+    name = "Create Periodic Task",
+    author = "Aurorans Solis",
+    settings(&[AppSettings::ColorNever, AppSettings::NoBinaryName]),
+)]
+pub struct CreatePeriodicTask {
+    #[structopt(skip)]
+    pub task: Task,
+    #[structopt(long = "start", name = "start_sending")]
+    pub start: NaiveDate,
+    #[structopt(flatten)]
+    pub duration: CreateTimePeriod,
+}
+
+impl CreatePeriodicTask {
+    pub fn create(self) -> AnyResult<PeriodicTask> {
+        Ok(PeriodicTask {
+            task: self.task,
+            last_sent: self
+                .start
+                .checked_sub_signed(self.duration.to_duration())
+                .ok_or(IoError::new(
+                    ErrorKind::InvalidInput,
+                    "Current date less the specified duration produces an invalid date.",
+                ))?,
+            next_send: self.start,
+        })
     }
 }

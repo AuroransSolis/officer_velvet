@@ -4,12 +4,15 @@ pub mod message;
 pub mod periodic_task;
 pub mod task;
 
-use crate::{cache_keys::TaskSenderKey, misc::{insufficient_perms, is_administrator}};
+use crate::{
+    cache_keys::TaskSenderKey,
+    misc::{insufficient_perms, is_administrator},
+};
 use anyhow::Result as AnyResult;
 use date_conditional_task::DateConditionalTask;
 use gulag::Gulag;
 use lazy_static::lazy_static;
-use periodic_task::PeriodicTask;
+use periodic_task::{CreatePeriodicTask, PeriodicTask};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serenity::{
@@ -59,7 +62,7 @@ lazy_static! {
     static ref CTREGEX: Regex = Regex::new(r"=>create_task (.+)\n```json\n([\w\W]+)```").unwrap();
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize, StructOpt)]
+#[derive(Clone, Debug, StructOpt)]
 #[structopt(
     name = "Create Task",
     author = "Aurorans Solis",
@@ -69,15 +72,15 @@ pub enum CreateTaskType {
     #[structopt(name = "date_conditional_task")]
     DateConditionalTask(DateConditionalTask),
     #[structopt(name = "periodic_task")]
-    PeriodicTask(PeriodicTask),
+    PeriodicTask(CreatePeriodicTask),
 }
 
-impl From<CreateTaskType> for TaskType {
-    fn from(other: CreateTaskType) -> Self {
-        match other {
+impl CreateTaskType {
+    pub fn create(self) -> AnyResult<TaskType> {
+        Ok(match self {
             CreateTaskType::DateConditionalTask(dct) => TaskType::DateConditionalTask(dct),
-            CreateTaskType::PeriodicTask(pt) => TaskType::PeriodicTask(pt),
-        }
+            CreateTaskType::PeriodicTask(pt) => TaskType::PeriodicTask(pt.create()?),
+        })
     }
 }
 
@@ -113,7 +116,7 @@ pub async fn create_task(ctx: &Context, message: &Message) -> CommandResult {
             }
             &[(subcommand, task)] => {
                 println!("CT | Valid user input.");
-                let mut subcommand = try_get_createtask(subcommand)?.into();
+                let mut subcommand = try_get_createtask(subcommand)?.create()?;
                 println!("CT | PS | Successfully parsed task type input.");
                 let task = match serde_json::from_str::<Task>(task) {
                     Ok(task) => task,
@@ -129,7 +132,8 @@ pub async fn create_task(ctx: &Context, message: &Message) -> CommandResult {
                 println!("CT | PS | Successfully parsed task input.");
                 match &mut subcommand {
                     TaskType::DateConditionalTask(DateConditionalTask {
-                        task: default_task, ..
+                        task: default_task,
+                        ..
                     })
                     | TaskType::PeriodicTask(PeriodicTask {
                         task: default_task, ..
@@ -139,7 +143,12 @@ pub async fn create_task(ctx: &Context, message: &Message) -> CommandResult {
                     _ => unreachable!(),
                 }
                 println!("CT | Assigned task to tasktype.");
-                &ctx.data.write().await.get_mut::<TaskSenderKey>().unwrap().send(subcommand)?;
+                &ctx.data
+                    .write()
+                    .await
+                    .get_mut::<TaskSenderKey>()
+                    .unwrap()
+                    .send(subcommand)?;
                 println!("CT | Sent task to executor.");
             }
             _ => {
