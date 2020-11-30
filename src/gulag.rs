@@ -6,9 +6,9 @@ use crate::{
 use anyhow::Result as AnyResult;
 use chrono::{prelude::*, Duration};
 use serenity::{
+    client::Context,
     framework::standard::{macros::command, CommandResult},
     model::{channel::Message, id::UserId},
-    prelude::*,
 };
 use std::{
     io::{Error as IoError, ErrorKind},
