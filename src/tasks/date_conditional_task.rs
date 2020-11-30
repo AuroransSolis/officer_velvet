@@ -42,20 +42,21 @@ pub struct DateCondition {
         short = "w",
         long = "weekday",
         name = "weekday",
+        conflicts_with("day_of_month"),
         parse(try_from_str = parse_weekday))
     ]
     pub weekday: Option<Weekday>,
     #[structopt(
         short = "d",
         long = "day_of_month",
-        alias("dom"),
+        visible_alias("dom"),
         name = "day_of_month"
     )]
     pub day_of_month: Option<u32>,
     #[structopt(
         short = "m",
         long = "month_of_year",
-        alias("moy"),
+        visible_alias("moy"),
         name = "month_of_year"
     )]
     pub month_of_year: Option<u32>,
