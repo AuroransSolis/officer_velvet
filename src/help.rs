@@ -1,4 +1,13 @@
-use crate::{gulag::GulagApp, misc::is_administrator, tasks::CreateTaskType};
+use crate::{
+    gulag::GulagApp,
+    misc::is_administrator,
+    tasks::{
+        CreateTaskType,
+        date_conditional_task::DateConditionalTask,
+        periodic_task::CreatePeriodicTask
+    },
+};
+use lazy_static::lazy_static;
 use serenity::{
     client::Context,
     framework::standard::{macros::command, CommandResult},
@@ -6,7 +15,26 @@ use serenity::{
     utils::Colour,
 };
 use std::time::Instant;
-use structopt::StructOpt;
+use structopt::{clap::App, StructOpt};
+
+fn get_help_msg(app: App) -> String {
+    let mut help_string = vec![b'`'; 3];
+    app.write_help(&mut help_string).unwrap();
+    help_string.extend_from_slice(&[b'`'; 3]);
+    String::from_utf8(help_string).unwrap()
+}
+
+lazy_static! {
+    pub static ref GULAG_HELP_MSG: String = get_help_msg(GulagApp::clap());
+    pub static ref CREATE_TASK_HELP_MSG: String = {
+        let mut string = get_help_msg(CreateTaskType::clap());
+        string.push('\n');
+        string.push_str(get_help_msg(DateConditionalTask::clap()).as_str());
+        string.push('\n');
+        string.push_str(get_help_msg(CreatePeriodicTask::clap()).as_str());
+        string
+    };
+}
 
 #[command]
 pub async fn help(ctx: &Context, message: &Message) -> CommandResult {
@@ -37,15 +65,13 @@ pub async fn help(ctx: &Context, message: &Message) -> CommandResult {
                     });
                 if is_administrator {
                     println!("HL | CE | User is administrator - adding admin commands to embed.");
-                    let apps = [
-                        ("=>gulag", GulagApp::clap()),
-                        ("=>create_task", CreateTaskType::clap()),
+                    let apps = vec![
+                        ("=>gulag", GULAG_HELP_MSG.as_str()),
+                        ("=>create_task", CREATE_TASK_HELP_MSG.as_str()),
+                        ("=>current_gulags", "Show current gulag sentences."),
                     ];
-                    for (cmd, app) in apps.iter() {
-                        let mut help_string = vec![b'`'; 3];
-                        app.write_help(&mut help_string).unwrap();
-                        help_string.extend_from_slice(&[b'`'; 3]);
-                        embed.field(cmd, String::from_utf8(help_string).unwrap(), false);
+                    for (cmd, desc) in apps.iter() {
+                        embed.field(cmd, desc, false);
                     }
                     embed.field("=>current_gulags", "Shows a listing of the current gulag sentences.", false);
                 }

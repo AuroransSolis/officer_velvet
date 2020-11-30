@@ -6,6 +6,7 @@ pub mod task;
 
 use crate::{
     cache_keys::TaskSenderKey,
+    help::CREATE_TASK_HELP_MSG,
     misc::{insufficient_perms, is_administrator},
 };
 use anyhow::Result as AnyResult;
@@ -103,16 +104,27 @@ pub async fn create_task(ctx: &Context, message: &Message) -> CommandResult {
         match &get_ctt_matches(message.content.as_str())[..] {
             &[] => {
                 println!("CT | User didn't provide all arguments, or failed to match format.");
-
-                message
-                    .reply(
-                        &ctx.http,
-                        "Aye, I'll be sure to do nothing.\n\
-                        \n\
-                        Sarcasm aside, I didn't find any tasks in that message. \
-                        Double-check your usage.",
-                    )
-                    .await?;
+                match message.content.to_lowercase().as_str() {
+                    "=>create_task -h" | "=>create_task --help" => {
+                        let msg = format!("Error parsing command. Details:\n```{}```", CREATE_TASK_HELP_MSG.as_str());
+                        message
+                            .channel_id
+                            .send_message(&ctx.http, |message| message.content(&msg))
+                            .await?;
+                        return Ok(());
+                    },
+                    _ => {
+                        message
+                            .reply(
+                                &ctx.http,
+                                "Aye, I'll be sure to do nothing.\n\
+                                \n\
+                                Sarcasm aside, I didn't find any tasks in that message. \
+                                Double-check your usage.",
+                            )
+                            .await?;
+                    }
+                }
             }
             &[(subcommand, task)] => {
                 println!("CT | Valid user input.");
