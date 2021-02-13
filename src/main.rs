@@ -1,4 +1,5 @@
 use anyhow::Result as AnyResult;
+use crossbeam_channel::{Receiver as CbReceiver, unbounded};
 use serenity::{
     framework::{standard::macros::group, StandardFramework},
     http::client::Http,
@@ -14,7 +15,6 @@ use structopt::StructOpt;
 use tokio::{
     fs::File as AsyncFile,
     io::AsyncWriteExt,
-    sync::mpsc::{unbounded_channel, UnboundedReceiver},
     time::interval,
 };
 
@@ -219,7 +219,7 @@ async fn main() -> AnyResult<()> {
     client.data.write().await.insert::<TasksKey>(tasks);
     println!("IN | Cached tasks.");
     // Create a channel for the bot thread to be able to send new tasks to the main thread.
-    let (send, recv) = unbounded_channel();
+    let (send, recv) = unbounded();
     client.data.write().await.insert::<TaskSenderKey>(send);
     // Spawn a ctrl+c handler here and have it send the proper instructions n' stuff.
     // todo
@@ -239,7 +239,7 @@ async fn main() -> AnyResult<()> {
 async fn start_task_handler(
     data: Arc<RwLock<TypeMap>>,
     http: Arc<Http>,
-    mut recv: UnboundedReceiver<TaskType>,
+    recv: CbReceiver<TaskType>,
 ) -> AnyResult<()> {
     let mut interval = interval(Duration::from_millis(500));
     loop {
