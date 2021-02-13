@@ -6,4 +6,8 @@
 - Best posts/user tracker
 - ~~Anagrams (COMPLETE)~~
     - Only allow in certain channels, gulag temporarily otherwise
-- ~~Kirb day (COMPLETE)~~
+- Shitlord
+- Connoisseurs
+- Bandboard leaderboard
+- Crak Day
+
