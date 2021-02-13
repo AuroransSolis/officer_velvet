@@ -8,12 +8,12 @@ use serenity::{
     prelude::{RwLock, TypeMap},
 };
 use std::{
-    fmt::{self, Display, Result as FmtResult},
+    fmt::{self, Debug, Display, Result as FmtResult},
     sync::Arc,
     time::Instant,
 };
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Serialize)]
 pub struct Gulag {
     pub user: (String, UserId),
     pub roles: Vec<(String, RoleId)>,
@@ -65,7 +65,7 @@ impl Gulag {
     }
 }
 
-impl Display for Gulag {
+impl Debug for Gulag {
     fn fmt(&self, f: &mut fmt::Formatter) -> FmtResult {
         writeln!(
             f,
@@ -78,5 +78,15 @@ impl Display for Gulag {
         }
         writeln!(f, "    End of sentence: {}", self.end)?;
         Ok(())
+    }
+}
+
+impl Display for Gulag {
+    fn fmt(&self, f: &mut fmt::Formatter) -> FmtResult {
+        writeln!(
+            f,
+            "{} (ID: {}), release at {} on {}",
+            self.user.0, self.user.1, self.end.time().round_subsecs(0), self.end.date()
+        )
     }
 }
