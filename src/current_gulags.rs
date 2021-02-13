@@ -42,6 +42,7 @@ pub async fn current_gulags(ctx: &Context, message: &Message) -> CommandResult {
             msg.trim()
         };
         println!("CG | Formatted gulag sentences.");
+        println!("CG | Formatted sentences:\n{}", msg);
         let icon_url = ctx.http.get_current_user().await?.avatar_url().unwrap();
         println!("CG | Retrieved icon URL.");
         let _ = message
