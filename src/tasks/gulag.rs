@@ -86,7 +86,10 @@ impl Display for Gulag {
         writeln!(
             f,
             "{} (ID: {}), release at {} on {}",
-            self.user.0, self.user.1, self.end.time().round_subsecs(0), self.end.date()
+            self.user.0,
+            self.user.1,
+            self.end.time().round_subsecs(0),
+            self.end.date()
         )
     }
 }
