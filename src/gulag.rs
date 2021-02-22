@@ -71,7 +71,8 @@ pub async fn gulag(ctx: &Context, message: &Message) -> CommandResult {
                     } else {
                         println!("GL | No gulag entries for that user exist.");
                         println!("GL | Getting guild ID.");
-                        let guild_id = context_data.get::<ConfigKey>().unwrap().guild_id;
+                        let config = context_data.get::<ConfigKey>().unwrap();
+                        let guild_id = config.guild_id;
                         println!("GL | Getting member information.");
                         let mut member =
                             match ctx.http.get_member(guild_id.into(), user_id.into()).await {
@@ -111,16 +112,24 @@ pub async fn gulag(ctx: &Context, message: &Message) -> CommandResult {
                         }?;
                         println!("GL | Successfully retrieved guild information.");
                         let mut roles_map = guild.roles;
-                        println!("GL | Removing Nitro role ID from ID => name map.");
+                        println!("GL | Removing Nitro role ID from ID => role map.");
                         let _ = roles_map.remove(&nitro_role_id);
+                        println!("GL | Removing elevated roles from ID => role map.");
+                        config.elevated_roles.iter().for_each(|(_, role_id)| {
+                            let _ = roles_map.remove(role_id);
+                        });
                         println!("GL | Mapping role IDs to role names.");
                         let roles = member
                             .roles
                             .iter()
-                            .map(|&role_id| {
-                                (roles_map.get(&role_id).unwrap().name.clone(), role_id)
+                            .filter_map(|role_id| {
+                                roles_map
+                                    .get(role_id)
+                                    .map(|role| (role.name.clone(), role.id))
                             })
                             .collect::<Vec<_>>();
+                        println!("GL | Removing the following roles:\n{:?}", roles);
+                        let remove_list = roles.iter().map(|(_, role_id)| *role_id).collect::<Vec<_>>();
                         println!("GL | Creating gulag entry.");
                         let gulag = Gulag::new(user, roles, end);
                         println!("GL | Getting task sender.");
@@ -144,8 +153,7 @@ pub async fn gulag(ctx: &Context, message: &Message) -> CommandResult {
                         println!("GL | Getting gulag role ID.");
                         let gulag_id = context_data.get::<ConfigKey>().unwrap().prisoner_role_id;
                         println!("GL | Removing user's roles.");
-                        let roles = member.roles.clone();
-                        member.remove_roles(&ctx.http, &roles).await?;
+                        member.remove_roles(&ctx.http, &remove_list).await?;
                         println!("GL | Adding prisoner role.");
                         ctx.http
                             .add_member_role(guild_id.into(), user_id.into(), gulag_id.into())
