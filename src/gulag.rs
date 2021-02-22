@@ -1,5 +1,5 @@
 use crate::{
-    cache_keys::{BotIdKey, ConfigKey, TaskSenderKey, TasksKey},
+    cache_keys::{BotIdKey, ConfigKey, NitroRoleKey, TaskSenderKey, TasksKey},
     misc::{insufficient_perms, is_administrator, CreateTimePeriod},
     tasks::{gulag::Gulag, TaskType},
 };
@@ -93,6 +93,8 @@ pub async fn gulag(ctx: &Context, message: &Message) -> CommandResult {
                             member.display_name(),
                             member.user.id,
                         );
+                        println!("GL | Fetching Nitro role ID");
+                        let nitro_role_id = context_data.get::<NitroRoleKey>().unwrap().id;
                         let user = (member.display_name().clone().into_owned(), user_id);
                         println!("GL | Fetching guild information.");
                         let guild = match ctx.http.get_guild(guild_id.into()).await {
@@ -108,8 +110,10 @@ pub async fn gulag(ctx: &Context, message: &Message) -> CommandResult {
                             }
                         }?;
                         println!("GL | Successfully retrieved guild information.");
-                        let roles_map = guild.roles;
-                        println!("GL | Mapping user IDs to role names.");
+                        let mut roles_map = guild.roles;
+                        println!("GL | Removing Nitro role ID from ID => name map.");
+                        let _ = roles_map.remove(&nitro_role_id);
+                        println!("GL | Mapping role IDs to role names.");
                         let roles = member
                             .roles
                             .iter()

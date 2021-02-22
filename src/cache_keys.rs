@@ -29,6 +29,12 @@ impl TypeMapKey for GulagRoleKey {
     type Value = Role;
 }
 
+pub struct NitroRoleKey;
+
+impl TypeMapKey for NitroRoleKey {
+    type Value = Role;
+}
+
 pub struct ReadyKey;
 
 impl TypeMapKey for ReadyKey {

@@ -13,6 +13,8 @@ pub struct Config {
     pub elevated_roles: Vec<(String, RoleId)>,
     pub prisoner_role_name: String,
     pub prisoner_role_id: RoleId,
+    pub nitro_role_name: String,
+    pub nitro_role_id: RoleId,
 }
 
 impl Default for Config {
@@ -27,6 +29,8 @@ impl Default for Config {
             elevated_roles: Vec::new(),
             prisoner_role_name: "".into(),
             prisoner_role_id: 0.into(),
+            nitro_role_name: "".into(),
+            nitro_role_id: 0.into(),
         }
     }
 }

@@ -1,22 +1,17 @@
 use anyhow::Result as AnyResult;
-use crossbeam_channel::{Receiver as CbReceiver, unbounded};
+use crossbeam_channel::{unbounded, Receiver as CbReceiver};
 use serenity::{
     framework::{standard::macros::group, StandardFramework},
     http::client::Http,
     prelude::*,
 };
 use std::{
-    fs::{self, File},
-    io::{Error as IoError, ErrorKind as IoErrorKind, Write},
+    io::{Error as IoError, ErrorKind as IoErrorKind},
     sync::Arc,
     time::Duration,
 };
 use structopt::StructOpt;
-use tokio::{
-    fs::File as AsyncFile,
-    io::AsyncWriteExt,
-    time::interval,
-};
+use tokio::{fs::File as AsyncFile, io::AsyncWriteExt, time::interval};
 
 mod anagram;
 mod args;
@@ -26,6 +21,7 @@ mod current_gulags;
 mod gulag;
 mod handler;
 mod help;
+mod init;
 mod leaderboard;
 mod misc;
 mod source;
@@ -38,6 +34,7 @@ use current_gulags::*;
 use gulag::*;
 use handler::{after, Handler};
 use help::*;
+use init::*;
 use source::*;
 use tasks::*;
 
@@ -54,41 +51,11 @@ pub const FOOTER_TEXT: &str = "Your friendly neighbourhood gulag officer, Office
 #[tokio::main]
 async fn main() -> AnyResult<()> {
     let args::Args { config_file_path } = args::Args::from_args();
-    let config_contents = match fs::read_to_string(&config_file_path) {
-        Ok(contents) => Ok(contents),
-        Err(error) => {
-            if error.kind() == IoErrorKind::NotFound {
-                println!(
-                    "IN | Config file not found. Attempting to create new default config file at '{}'",
-                    config_file_path
-                );
-                let mut new_config_file = File::create(&config_file_path)?;
-                let default_contents = serde_json::to_string_pretty(&Config::default()).unwrap();
-                new_config_file.write_all(default_contents.as_bytes())?;
-                println!("IN | Created new config file and wrote defaults.");
-            }
-            Err(error)
-        }
-    }?;
+    let config_contents = read_config_file(&config_file_path)?;
     println!("IN | Read config file contents.");
     let mut config = serde_json::from_str::<Config>(&config_contents)?;
     println!("IN | Parsed config from config file contents.");
-    let tasks = match fs::read_to_string(&config.tasks_file) {
-        Ok(contents) if contents.len() == 0 => Ok(Vec::new()),
-        Ok(contents) => Ok(serde_json::from_str::<Vec<TaskType>>(&contents)?),
-        Err(error) => match error.kind() {
-            IoErrorKind::NotFound => {
-                println!(
-                    "IN | Tasks file not found. Attempting to create new tasks file at '{}'",
-                    config.tasks_file
-                );
-                let _ = File::create(&config.tasks_file)?;
-                println!("IN | Created new blank tasks file.");
-                Ok(Vec::new())
-            }
-            _ => Err(error),
-        },
-    }?;
+    let tasks = read_tasks_file(&config)?;
     println!("IN | Collected tasks.");
     let framework = StandardFramework::new()
         .configure(|c| c.prefix("=>"))
@@ -119,42 +86,73 @@ async fn main() -> AnyResult<()> {
         .await?;
     println!("IN | Fetched guild roles.");
     // Try to find the gulag role.
-    let gulag_role = guild_roles
-        .iter()
-        .find(|&role| role.name == config.prisoner_role_name || role.id == config.prisoner_role_id)
-        .ok_or({
+    let gulag_role = find_role_by(
+        &guild_roles,
+        |&role| role.id == config.prisoner_role_id || role.name == config.prisoner_role_name,
+        || {
             let msg = format!(
                 "IN | Failed to get gulag role by name ('{}') or ID ('{}').",
                 config.prisoner_role_name, config.prisoner_role_id
             );
-            IoError::new(IoErrorKind::InvalidData, msg.as_str())
-        })?
-        .clone();
+            IoError::new(IoErrorKind::InvalidData, msg.as_str()).into()
+        },
+    )?;
     println!("IN | Found gulag role in guild roles.");
     println!("IN | Checking whether it is necessary to update the prisoner role name or ID");
     // Update role name and/or ID in config if necessary, and write out to file.
-    if gulag_role.id != config.prisoner_role_id || gulag_role.id != config.prisoner_role_id {
-        if gulag_role.id != config.prisoner_role_id {
-            println!("IN | CF | IDs do not match. Updating ID.");
-            config.prisoner_role_id = gulag_role.id;
-        } else if gulag_role.name != config.prisoner_role_name {
-            println!("IN | CF | Names do not match. Updating name.");
-            config.prisoner_role_name.clear();
-            config.prisoner_role_name.push_str(&gulag_role.name);
-        }
-        println!("IN | CF | Re-creating config file.");
-        let mut file = File::create(&config_file_path)?;
-        println!("IN | CF | Serializing updated config.");
-        let config_string = serde_json::to_string_pretty(&config)?;
-        println!("IN | CF | Writing updated config to file.");
-        file.write_all(config_string.as_bytes())?;
-        println!("IN | CF | Updated saved config.");
-    } else {
-        println!("IN | CF | Saved config is up to date.");
-    }
+    update_config_if(
+        &config_file_path,
+        &mut config,
+        |config| {
+            gulag_role.id != config.prisoner_role_id || gulag_role.name != config.prisoner_role_name
+        },
+        |config| {
+            if gulag_role.id != config.prisoner_role_id {
+                println!("IN | CF | IDs do not match. Updating ID.");
+                config.prisoner_role_id = gulag_role.id;
+            } else {
+                println!("IN | CF | Names do not match. Updating name.");
+                config.prisoner_role_name.clear();
+                config.prisoner_role_name.push_str(&gulag_role.name);
+            }
+        },
+    )?;
     // Cache gulag role.
     client.data.write().await.insert::<GulagRoleKey>(gulag_role);
     println!("IN | Cached gulag role.");
+    // Try to find the Nitro role.
+    let nitro_role = find_role_by(
+        &guild_roles,
+        |&role| role.id == config.nitro_role_id || role.name == config.nitro_role_name,
+        || {
+            let msg = format!(
+                "IN | Failed to get Nitro role by name ('{}') or ID ('{}').",
+                config.prisoner_role_name, config.prisoner_role_id
+            );
+            IoError::new(IoErrorKind::InvalidData, msg.as_str()).into()
+        },
+    )?;
+    println!("IN | Found Nitro role in guild roles.");
+    println!("IN | Checking whether it is necessary to update the Nitro role name or ID");
+    // Update role name and/or ID in config if necessary, and write out to file.
+    update_config_if(
+        &config_file_path,
+        &mut config,
+        |config| nitro_role.id != config.nitro_role_id || nitro_role.name != config.nitro_role_name,
+        |config| {
+            if nitro_role.id != config.nitro_role_id {
+                println!("IN | CF | IDs do not match. Updating ID.");
+                config.nitro_role_id = nitro_role.id;
+            } else {
+                println!("IN | CF | Names do not match. Updating name.");
+                config.nitro_role_name.clear();
+                config.nitro_role_name.push_str(&nitro_role.name);
+            }
+        },
+    )?;
+    // Cache Nitro role.
+    client.data.write().await.insert::<NitroRoleKey>(nitro_role);
+    println!("IN | Cached Nitro role.");
     // Find all the roles allowed permission to use all commands and cache them as well.
     let elevated_roles = guild_roles
         .iter()
@@ -162,51 +160,47 @@ async fn main() -> AnyResult<()> {
             config
                 .elevated_roles
                 .iter()
-                .any(|role2| &role1.name == &role2.0 || &role1.id == &role2.1)
+                .any(|role2| &role1.id == &role2.1 || &role1.name == &role2.0)
         })
         .map(|role| role.clone())
         .collect::<Vec<_>>();
     println!("IN | Found elevated roles.");
     println!("IN | Checking whether it is necessary to update elevated role names or IDs");
     // Update role name and/or ID for each role in config if necessary, and write out to file.
-    if elevated_roles
-        .iter()
-        .map(|role| {
-            println!(
-                "IN | CF | Checking config values for role '{}' (ID {})",
-                role.name, role.id
-            );
-            let config = config
-                .elevated_roles
-                .iter_mut()
-                .find(|config_role| &role.id == &config_role.1 || &role.name == &config_role.0)
-                .unwrap();
-            if &role.id != &config.1 {
-                println!("IN | CF | IDs do not match. Updating ID.");
-                config.1 = role.id;
-                true
-            } else if &role.name != &config.0 {
-                println!("IN | CF | Names do not match. Updating name.");
-                config.0.clear();
-                config.0.push_str(&role.name.as_str());
-                true
-            } else {
-                println!("IN | CF | Name and ID match.");
-                false
-            }
-        })
-        .fold(false, |acc, new| acc || new)
-    {
-        println!("IN | CF | Re-creating config file.");
-        let mut file = File::create(&config_file_path)?;
-        println!("IN | CF | Serializing updated config.");
-        let config_string = serde_json::to_string_pretty(&config)?;
-        println!("IN | CF | Writing updated config to file.");
-        file.write_all(config_string.as_bytes())?;
-        println!("IN | CF | Updated saved config.");
-    } else {
-        println!("IN | CF | Saved config is up to date.");
-    }
+    update_config_if(
+        &config_file_path,
+        &mut config,
+        |config| {
+            elevated_roles.iter().any(|role| {
+                config
+                    .elevated_roles
+                    .iter()
+                    .any(|(name, id)| (name != role.name.as_str()) ^ (*id != role.id))
+            })
+        },
+        |config| {
+            elevated_roles.iter().for_each(|role| {
+                println!(
+                    "IN | CF | Checking config values for role '{}' (ID {})",
+                    role.name, role.id
+                );
+                config.elevated_roles.iter_mut().for_each(|(name, id)| {
+                    let matching_ids = *id == role.id;
+                    let matching_names = name == role.name.as_str();
+                    if !matching_ids && matching_names {
+                        println!("IN | CF | IDs do not match. Updating ID.");
+                        *id = role.id;
+                    } else if matching_ids && !matching_names {
+                        println!("IN | CF | Names do not match. Updating name.");
+                        name.clear();
+                        name.push_str(role.name.as_str());
+                    } else {
+                        println!("IN | CF | Name and ID match.");
+                    }
+                })
+            })
+        },
+    )?;
     // Cache elevated roles.
     client
         .data
