@@ -1,4 +1,4 @@
-use crate::cache_keys::ConfigKey;
+use crate::{cache_keys::ConfigKey, tasks::TaskType};
 use anyhow::Result as AnyResult;
 use chrono::{DateTime, Duration, Utc};
 use serenity::{http::CacheHttp, model::channel::Message, prelude::*};
@@ -7,7 +7,7 @@ use structopt::{
     clap::{App, AppSettings},
     StructOpt,
 };
-use tokio::sync::RwLockReadGuard;
+use tokio::{fs::File as AsyncFile, io::AsyncWriteExt, sync::RwLockReadGuard};
 
 // This file just contains some QoL stuff. Nothing important.
 
@@ -176,6 +176,17 @@ impl CreateTimePeriod {
             })
         }
     }
+}
+
+pub async fn update_task_list(filename: &str, tasklist: &[TaskType]) -> AnyResult<()> {
+    println!("TL | Writing out task list.");
+    println!("TL | Assigning context task list to changed list.");
+    let mut tasks_file = AsyncFile::create(filename).await?;
+    let new_contents = serde_json::to_string_pretty(tasklist).unwrap();
+    tasks_file
+        .write_all(new_contents.as_bytes())
+        .await
+        .map_err(|err| err.into())
 }
 
 pub fn get_help_msg(app: App) -> String {
