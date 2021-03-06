@@ -129,7 +129,10 @@ pub async fn gulag(ctx: &Context, message: &Message) -> CommandResult {
                             })
                             .collect::<Vec<_>>();
                         println!("GL | Removing the following roles:\n{:?}", roles);
-                        let remove_list = roles.iter().map(|(_, role_id)| *role_id).collect::<Vec<_>>();
+                        let remove_list = roles
+                            .iter()
+                            .map(|(_, role_id)| *role_id)
+                            .collect::<Vec<_>>();
                         println!("GL | Creating gulag entry.");
                         let gulag = Gulag::new(user, roles, end);
                         println!("GL | Getting task sender.");
