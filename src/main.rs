@@ -11,7 +11,7 @@ use std::{
     time::Duration,
 };
 use structopt::StructOpt;
-use tokio::{fs::File as AsyncFile, io::AsyncWriteExt, time::interval};
+use tokio::time::{interval, sleep};
 
 mod anagram;
 mod args;
@@ -24,6 +24,7 @@ mod help;
 mod init;
 mod leaderboard;
 mod misc;
+mod release;
 mod source;
 mod tasks;
 
@@ -35,6 +36,8 @@ use gulag::*;
 use handler::{after, Handler};
 use help::*;
 use init::*;
+use misc::*;
+use release::*;
 use source::*;
 use tasks::*;
 
@@ -43,7 +46,7 @@ use tasks::*;
 struct GeneralCommands;
 
 #[group]
-#[commands(create_task, current_gulags, gulag)]
+#[commands(create_task, current_gulags, gulag, release)]
 struct AdminCommands;
 
 pub const FOOTER_TEXT: &str = "Your friendly neighbourhood gulag officer, Officer Velvet";
@@ -235,12 +238,17 @@ async fn start_task_handler(
     http: Arc<Http>,
     recv: CbReceiver<TaskType>,
 ) -> AnyResult<()> {
-    let mut interval = interval(Duration::from_millis(500));
+    let mut interval = interval(Duration::from_millis(1000));
+    let tasklist_filename = data
+        .read()
+        .await
+        .get::<ConfigKey>()
+        .unwrap()
+        .tasks_file
+        .clone();
     loop {
-        // Get write lock on context data.
-        let context_data = data.read().await;
-        let mut tasks = context_data.get::<TasksKey>().unwrap().clone();
-        drop(context_data);
+        // Get copy of task list.
+        let mut tasks = data.read().await.get::<TasksKey>().unwrap().clone();
         let mut made_changes = false;
         // Check for new tasks.
         while let Ok(task) = recv.try_recv() {
@@ -261,17 +269,9 @@ async fn start_task_handler(
         }
         if made_changes {
             println!("TL | Changes to task list were made.");
-            println!("TL | Assigning context task list to changed list.");
-            let mut context_data = data.write().await;
-            *context_data.get_mut::<TasksKey>().unwrap() = tasks;
-            drop(context_data);
-            println!("TL | Serializing task list and writing to task file.");
-            let context_data = data.read().await;
-            let tasks = context_data.get::<TasksKey>().unwrap();
-            let tasks_path = context_data.get::<ConfigKey>().unwrap().tasks_file.as_str();
-            let mut tasks_file = AsyncFile::create(tasks_path).await?;
-            let new_contents = serde_json::to_string_pretty(tasks).unwrap();
-            tasks_file.write_all(new_contents.as_bytes()).await?;
+            update_task_list(&tasklist_filename, &tasks).await?;
+            // Sync global tasklist with new list.
+            *data.write().await.get_mut::<TasksKey>().unwrap() = tasks;
         }
         interval.tick().await;
     }
