@@ -57,6 +57,13 @@ impl TaskType {
             TaskType::PeriodicTask(task) => task.act(data, http).await,
         }
     }
+
+    pub fn gulag_ref(&self) -> Option<&Gulag> {
+        match self {
+            TaskType::Gulag(gulag) => Some(gulag),
+            _ => None,
+        }
+    }
 }
 
 lazy_static! {
