@@ -27,7 +27,6 @@ pub async fn release(ctx: &Context, message: &Message) -> CommandResult {
         let context_data = ctx.data.read().await;
         println!("RL | Getting tasks list.");
         let tasks = context_data.get::<TasksKey>().unwrap();
-        println!("RL | Tasks:\n{:?}", tasks);
         println!("RL | Checking for gulag entry for user ID {}", user_id);
         if let Some(ind) = tasks.iter().position(|task| {
             task.gulag_ref()
