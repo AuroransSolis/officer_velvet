@@ -13,8 +13,8 @@ use std::{
 };
 use structopt::{clap::AppSettings, StructOpt};
 
-fn time_eq_to_mins(t1: NaiveTime, t2: NaiveTime) -> bool {
-    t1.hour() == t2.hour() && t1.minute() == t2.minute()
+fn time_eq_to_secs(t1: NaiveTime, t2: NaiveTime) -> bool {
+    t1.hour() == t2.hour() && t1.minute() == t2.minute() && t1.second() == t2.second()
 }
 
 fn parse_weekday(s: &str) -> AnyResult<Weekday> {
@@ -65,7 +65,7 @@ pub struct DateCondition {
 impl<'a> PartialEq<DateTime<Utc>> for &'a DateCondition {
     fn eq(&self, other: &DateTime<Utc>) -> bool {
         self.time
-            .map(|time| time_eq_to_mins(time, other.time()))
+            .map(|time| time_eq_to_secs(time, other.time()))
             .map(|result| {
                 self.weekday
                     .map(|weekday| weekday == other.weekday() && result)
