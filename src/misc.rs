@@ -195,3 +195,21 @@ pub fn get_help_msg(app: App) -> String {
     help_string.extend_from_slice(&[b'`'; 3]);
     String::from_utf8(help_string).unwrap()
 }
+
+#[cfg(test)]
+mod test {
+    use super::CreateTimePeriod;
+    use chrono::Duration;
+
+    fn test_create_time_period_duration() {
+        let ctp = CreateTimePeriod {
+            end_date: None,
+            duration_secs: Some(100),
+            duration_hours: None,
+            duration_mins: None,
+            duration_days: None,
+            duration_weeks: None,
+        };
+        assert_eq!(ctp.to_duration(), Duration::seconds(100));
+    }
+}
