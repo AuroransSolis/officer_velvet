@@ -1,7 +1,7 @@
 use super::task::Task;
 use crate::misc::CreateTimePeriod;
 use anyhow::Result as AnyResult;
-use chrono::prelude::*;
+use chrono::{Duration, prelude::*};
 use serde::{Deserialize, Serialize};
 use serenity::{
     http::client::Http,
@@ -16,15 +16,13 @@ use structopt::{clap::AppSettings, StructOpt};
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct PeriodicTask {
     pub task: Task,
+    pub diff: i64,
     pub last_sent: NaiveDateTime,
-    pub next_send: NaiveDateTime,
 }
 
 impl PeriodicTask {
     pub fn elapse_period(&mut self) -> AnyResult<()> {
-        let diff = self.next_send.signed_duration_since(self.last_sent);
-        self.last_sent = self.next_send;
-        self.next_send = self.next_send.checked_add_signed(diff).ok_or(IoError::new(
+        self.last_sent = self.last_sent.checked_add_signed(Duration::seconds(self.diff)).ok_or(IoError::new(
             ErrorKind::InvalidData,
             "Advancing a periodic task's dates produced an invalid date.",
         ))?;
@@ -32,12 +30,12 @@ impl PeriodicTask {
     }
 
     pub fn time_to_act(&self) -> bool {
-        Utc::now().naive_utc() >= self.next_send
+        Utc::now().naive_utc().signed_duration_since(self.last_sent) >= Duration::seconds(self.diff)
     }
 
     pub async fn act(&mut self, data: &Arc<RwLock<TypeMap>>, http: &Arc<Http>) -> AnyResult<()> {
         self.task.act(data, http).await?;
-        while self.next_send <= Utc::now().naive_utc() {
+        while Utc::now().naive_utc().signed_duration_since(self.last_sent) >= Duration::seconds(self.diff) {
             self.elapse_period()?;
         }
         Ok(())
@@ -62,14 +60,8 @@ impl CreatePeriodicTask {
     pub fn create(self) -> AnyResult<PeriodicTask> {
         Ok(PeriodicTask {
             task: self.task,
-            last_sent: self
-                .start
-                .checked_sub_signed(self.duration.to_duration())
-                .ok_or(IoError::new(
-                    ErrorKind::InvalidInput,
-                    "Current date less the specified duration produces an invalid date.",
-                ))?,
-            next_send: self.start,
+            diff: self.duration.to_duration().num_seconds(),
+            last_sent: Utc::now().naive_utc(),
         })
     }
 }
