@@ -12,6 +12,7 @@ use serenity::{
 };
 use std::time::Instant;
 use structopt::{clap::AppSettings, StructOpt};
+use tracing::{event, instrument, Level, span};
 
 #[derive(Clone, Debug, StructOpt)]
 #[structopt(
@@ -26,6 +27,7 @@ pub(crate) struct GulagApp {
     time_period: CreateTimePeriod,
 }
 
+#[instrument(skip(s))]
 fn try_get_gulag(s: &str) -> AnyResult<(UserId, DateTime<Utc>)> {
     println!("GL | Parsing gulag command use from '{}'", s);
     let trimmed = s.trim_start_matches("=>gulag").trim();
@@ -40,19 +42,21 @@ fn try_get_gulag(s: &str) -> AnyResult<(UserId, DateTime<Utc>)> {
     Ok((user_id, end))
 }
 
+#[instrument(skip(ctx, message))]
 #[command]
 pub async fn gulag(ctx: &Context, message: &Message) -> CommandResult {
-    println!("CM | Start handling gulag command.");
+    event!(Level::TRACE, "Start handling gulag command.");
     let start = Instant::now();
-    println!("GL | Grabbing read 'lock' on context data.");
+    event!(Level::TRACE, "Grabbing read 'lock' on context data.");
     let context_data = ctx.data.read().await;
     let self_id = *context_data.get::<BotIdKey>().unwrap();
-    println!("GL | Checking permissions.");
+    event!(Level::TRACE, "Checking permissions.");
     if is_administrator(&ctx.http, context_data, &message).await? {
+        let is_admin = span!(parent: "gulag", Level::TRACE, "is_admin");
         match try_get_gulag(message.content.as_str()) {
             Ok((user_id, end)) => {
                 if user_id != self_id {
-                    println!("GL | Getting write lock on context data.");
+                    event!(Level::TRACE, "Getting write lock on context data.");
                     let mut context_data = ctx.data.write().await;
                     println!("GL | Getting tasks list.");
                     let tasks = context_data.get_mut::<TasksKey>().unwrap();

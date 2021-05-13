@@ -23,6 +23,7 @@ mod handler;
 mod help;
 mod init;
 mod leaderboard;
+mod list_tasks;
 mod misc;
 mod release;
 mod source;
