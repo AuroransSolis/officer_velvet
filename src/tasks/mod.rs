@@ -50,10 +50,14 @@ impl TaskType {
         }
     }
 
-    pub async fn act(&mut self, data: &Arc<RwLock<TypeMap>>, http: &Arc<Http>) -> AnyResult<()> {
+    pub async fn act(
+        &mut self,
+        data: &Arc<RwLock<TypeMap>>,
+        http: &impl AsRef<Http>,
+    ) -> AnyResult<()> {
         match self {
             TaskType::DateConditionalTask(task) => task.act(data, http).await,
-            TaskType::Gulag(task) => task.act(data, http).await,
+            TaskType::Gulag(task) => task.act(data, http.as_ref()).await,
             TaskType::PeriodicTask(task) => task.act(data, http).await,
         }
     }

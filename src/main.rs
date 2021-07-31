@@ -191,10 +191,10 @@ async fn main() -> AnyResult<()> {
                 config.elevated_roles.iter_mut().for_each(|(name, id)| {
                     let matching_ids = *id == role.id;
                     let matching_names = name == role.name.as_str();
-                    if !matching_ids && matching_names {
+                    if !matching_ids & matching_names {
                         println!("IN | CF | IDs do not match. Updating ID.");
                         *id = role.id;
-                    } else if matching_ids && !matching_names {
+                    } else if matching_ids & !matching_names {
                         println!("IN | CF | Names do not match. Updating name.");
                         name.clear();
                         name.push_str(role.name.as_str());

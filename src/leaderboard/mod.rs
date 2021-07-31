@@ -1,79 +1,75 @@
+use crate::cache_keys::ConfigKey;
 use anyhow::{anyhow, Result as AnyResult};
 use serde::{Deserialize, Serialize};
-use serenity::{
-    http::Http,
-    model::id::{ChannelId, RoleId, UserId},
-    prelude::{RwLock, TypeMap},
-};
+use serenity::{client::Cache, http::{CacheHttp, Http}, model::id::{ChannelId, GuildId, RoleId, UserId}, prelude::{RwLock, TypeMap}};
 use std::{sync::Arc, time::Duration};
 
-use crate::cache_keys::ConfigKey;
+mod scoring_method;
 
-mod pings;
-mod pins;
-
-/*
-Honestly not sure about any of this. I probably should cache leaderboards and update them on
-certain events, but I'm not sure how to do that somewhat generically without massively specializing.
-*/
+use scoring_method::ScoringMethod;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
-pub enum LeaderboardType {
-    Pins {
-        name: String,
-        current_id: ChannelId,
-        archive_to: ChannelId,
-    },
-    Pings {
-        channel_id: ChannelId,
-        track_for: Duration,
-    },
+pub struct LeaderboardEntry {
+    pub name: String,
+    pub id: UserId,
+    pub score: usize,
 }
 
-impl LeaderboardType {
-    async fn channel_id(
-        &mut self,
-        http: Arc<Http>,
-        data: Arc<RwLock<TypeMap>>,
-    ) -> AnyResult<ChannelId> {
-        match self {
-            LeaderboardType::Pings { channel_id, .. } => Ok(*channel_id),
-            LeaderboardType::Pins {
-                ref name,
-                current_id: last_id,
-                archive_to,
-            } => {
-                let guild_id = data.read().await.get::<ConfigKey>().unwrap().guild_id;
-                let current_id = http
-                    .get_channels(*guild_id.as_u64())
-                    .await?
-                    .into_iter()
-                    .find(|channel| channel.name.as_str() == name.as_str())
-                    .ok_or_else(|| {
-                        anyhow!(
-                            "Channel with name '{}' doesn't exist for guild ID {}",
-                            name,
-                            guild_id
-                        )
-                    })?;
-                if *last_id != current_id.id {
-                    *last_id = current_id.id;
-                }
-                Ok(current_id.id)
-            }
-        }
+impl LeaderboardEntry {
+    pub fn new(name: String, id: UserId, score: usize) -> Self {
+        LeaderboardEntry { name, id, score }
     }
 }
 
+// serde is a temporary stand-in while I learn DB stuff.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Leaderboard {
-    pub lb_type: LeaderboardType,
+    pub leaderboard: Vec<LeaderboardEntry>,
+    pub number: usize,
+    pub guild: GuildId,
+    pub scoring_method: ScoringMethod,
+    pub update_period: Duration,
     pub award: Option<(String, RoleId)>,
-    pub given_to: Vec<UserId>,
+    pub last_given_to: Option<UserId>,
 }
 
 impl Leaderboard {
-    async fn update(&mut self) -> AnyResult<()> {
+    async fn update(&mut self, cache_http: &impl CacheHttp) -> AnyResult<()> {
+        let untrimmed_leaderboard = self.scoring_method.get_leaderboard(http).await?;
+        self.leaderboard = untrimmed_leaderboard
+            .into_iter()
+            .take(self.number)
+            .collect();
         Ok(())
+    }
+ 
+    async fn award_winner(
+        &mut self,
+        cache_http: &impl CacheHttp,
+    ) -> AnyResult<()> {
+        if let Some((role_name, role_id)) = &self.award {
+            println!(
+                "LB | AW | Attempting to award role '{}' to user '{}' ({})",
+                role_name, self.leaderboard[0].name, self.leaderboard[0].id
+            );
+            let award_to = self.leaderboard[0].id;
+            println!("LB | AW | Getting guild ID");
+            let guild_id = cache_http.cache().read().await.get::<ConfigKey>().unwrap().guild_id;
+            if let Some(last) = self.last_given_to {
+                println!("LB | AW | No awards given previously.");
+                
+            }
+        }
+        Ok(())
+    }
+}
+
+async fn try_give_role(http: &impl AsRef<Http>, cache: &Arc<Cache>, guild: GuildId, user: UserId, role: RoleId) -> AnyResult<()> {
+    let member = guild.member((cache, http.as_ref()), user).await?;
+    if member.roles.contains(&role) {
+        println!("LB | AW | User already has role ID {}", role);
+        Ok(())
+    } else {
+
     }
 }

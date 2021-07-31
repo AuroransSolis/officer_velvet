@@ -1,7 +1,7 @@
 use super::task::Task;
 use crate::misc::CreateTimePeriod;
 use anyhow::Result as AnyResult;
-use chrono::{Duration, prelude::*};
+use chrono::{prelude::*, Duration};
 use serde::{Deserialize, Serialize};
 use serenity::{
     http::client::Http,
@@ -22,10 +22,13 @@ pub struct PeriodicTask {
 
 impl PeriodicTask {
     pub fn elapse_period(&mut self) -> AnyResult<()> {
-        self.last_sent = self.last_sent.checked_add_signed(Duration::seconds(self.diff)).ok_or(IoError::new(
-            ErrorKind::InvalidData,
-            "Advancing a periodic task's dates produced an invalid date.",
-        ))?;
+        self.last_sent = self
+            .last_sent
+            .checked_add_signed(Duration::seconds(self.diff))
+            .ok_or(IoError::new(
+                ErrorKind::InvalidData,
+                "Advancing a periodic task's dates produced an invalid date.",
+            ))?;
         Ok(())
     }
 
@@ -33,9 +36,15 @@ impl PeriodicTask {
         Utc::now().naive_utc().signed_duration_since(self.last_sent) >= Duration::seconds(self.diff)
     }
 
-    pub async fn act(&mut self, data: &Arc<RwLock<TypeMap>>, http: &Arc<Http>) -> AnyResult<()> {
+    pub async fn act(
+        &mut self,
+        data: &Arc<RwLock<TypeMap>>,
+        http: &impl AsRef<Http>,
+    ) -> AnyResult<()> {
         self.task.act(data, http).await?;
-        while Utc::now().naive_utc().signed_duration_since(self.last_sent) >= Duration::seconds(self.diff) {
+        while Utc::now().naive_utc().signed_duration_since(self.last_sent)
+            >= Duration::seconds(self.diff)
+        {
             self.elapse_period()?;
         }
         Ok(())

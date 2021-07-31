@@ -29,7 +29,7 @@ impl Gulag {
         self.end <= Utc::now()
     }
 
-    pub async fn act(&self, data: &Arc<RwLock<TypeMap>>, http: &Arc<Http>) -> AnyResult<()> {
+    pub async fn act(&self, data: &Arc<RwLock<TypeMap>>, http: &impl AsRef<Http>) -> AnyResult<()> {
         let start = Instant::now();
         println!("TL | GL | Getting context data reference.");
         let context_data = data.read().await;
@@ -46,7 +46,10 @@ impl Gulag {
             guild_id, gulag_id
         );
         println!("TL | GL | Getting member information.");
-        let mut member = http.get_member(guild_id, self.user.1.into()).await?;
+        let mut member = http
+            .as_ref()
+            .get_member(guild_id, self.user.1.into())
+            .await?;
         println!("TL | GL | Removing prisoner role.");
         member.remove_role(http, gulag_id).await?;
         println!("TL | GL | Getting list of role IDs to add back to user.");
@@ -56,7 +59,7 @@ impl Gulag {
             .map(|&(_, role_id)| role_id)
             .collect::<Vec<_>>();
         println!("TL | GL | Adding roles back to user.");
-        member.add_roles(http, &role_ids).await?;
+        member.add_roles(http.as_ref(), &role_ids).await?;
         println!(
             "TL | GL | Successfully un-gulagged user in {:?}.",
             start.elapsed()

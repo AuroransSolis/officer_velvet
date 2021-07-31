@@ -24,7 +24,7 @@ pub enum Task {
 }
 
 impl Task {
-    pub async fn act(&self, data: &Arc<RwLock<TypeMap>>, http: &Arc<Http>) -> AnyResult<()> {
+    pub async fn act(&self, data: &Arc<RwLock<TypeMap>>, http: &impl AsRef<Http>) -> AnyResult<()> {
         match self {
             Task::SendMessage {
                 send_to,
@@ -33,7 +33,12 @@ impl Task {
             } => {
                 let mut create_message = message.build();
                 if message.is_embed() {
-                    let icon_url = http.get_current_user().await?.avatar_url().unwrap();
+                    let icon_url = http
+                        .as_ref()
+                        .get_current_user()
+                        .await?
+                        .avatar_url()
+                        .unwrap();
                     create_message.embed(|embed| embed.footer(|footer| footer.icon_url(icon_url)));
                 }
                 if let Some(filename) = upload_file.as_ref() {
@@ -61,14 +66,16 @@ impl Task {
                     let config = context.get::<ConfigKey>().unwrap();
                     (config.guild_id, config.files_dir.clone())
                 };
-                http.edit_nickname(guild_id.into(), Some(new_name.as_str()))
+                http.as_ref()
+                    .edit_nickname(guild_id.into(), Some(new_name.as_str()))
                     .await?;
                 let avatar_b64 = read_image(format!(
                     "{}/{}",
                     files_dir.trim_end_matches('/'),
                     new_icon_filename
                 ))?;
-                http.get_current_user()
+                http.as_ref()
+                    .get_current_user()
                     .await?
                     .edit(&http, |user| user.avatar(Some(&avatar_b64)))
                     .await?;

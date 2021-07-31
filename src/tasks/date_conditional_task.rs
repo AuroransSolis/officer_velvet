@@ -102,7 +102,7 @@ impl DateConditionalTask {
         &self.condition == Utc::now()
     }
 
-    pub async fn act(&self, data: &Arc<RwLock<TypeMap>>, http: &Arc<Http>) -> AnyResult<()> {
+    pub async fn act(&self, data: &Arc<RwLock<TypeMap>>, http: &impl AsRef<Http>) -> AnyResult<()> {
         self.task.act(data, http).await
     }
 }
