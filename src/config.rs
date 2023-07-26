@@ -20,16 +20,16 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Config {
-            tasks_file: "".into(),
-            bot_id: "".into(),
+            tasks_file: String::new(),
+            bot_id: String::new(),
             files_dir: "files".into(),
             icon_filename: "default.png".into(),
             leaderboard_filename: "leaderboard".into(),
             guild_id: 0.into(),
             elevated_roles: Vec::new(),
-            prisoner_role_name: "".into(),
+            prisoner_role_name: String::new(),
             prisoner_role_id: 0.into(),
-            nitro_role_name: "".into(),
+            nitro_role_name: String::new(),
             nitro_role_id: 0.into(),
         }
     }

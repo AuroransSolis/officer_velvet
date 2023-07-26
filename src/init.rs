@@ -7,15 +7,17 @@ use std::{
 };
 
 pub fn read_config_file(cf: &str) -> AnyResult<String> {
-    match fs::read_to_string(&cf) {
+    match fs::read_to_string(cf) {
         Ok(contents) => Ok(contents),
         Err(error) => {
             if error.kind() == IoErrorKind::NotFound {
                 println!(
-                    "IN | Config file not found. Attempting to create new default config file at '{}'",
-                    cf
+                    "\
+                        IN | Config file not found. \
+                        Attempting to create new default config file at '{cf}'\
+                    "
                 );
-                let mut new_config_file = File::create(&cf)?;
+                let mut new_config_file = File::create(cf)?;
                 let default_contents = serde_json::to_string_pretty(&Config::default()).unwrap();
                 new_config_file.write_all(default_contents.as_bytes())?;
                 println!("IN | Created new config file and wrote defaults.");
@@ -27,7 +29,7 @@ pub fn read_config_file(cf: &str) -> AnyResult<String> {
 
 pub fn read_tasks_file(config: &Config) -> AnyResult<Vec<TaskType>> {
     match fs::read_to_string(&config.tasks_file) {
-        Ok(contents) if contents.len() == 0 => Ok(Vec::new()),
+        Ok(contents) if contents.is_empty() => Ok(Vec::new()),
         Ok(contents) => Ok(serde_json::from_str::<Vec<TaskType>>(&contents)?),
         Err(error) => match error.kind() {
             IoErrorKind::NotFound => {
@@ -49,17 +51,10 @@ pub fn find_role_by<Find: FnMut(&&Role) -> bool, Err: FnOnce() -> AnyError>(
     find_by: Find,
     err: Err,
 ) -> AnyResult<Role> {
-    roles
-        .iter()
-        .find(find_by)
-        .map(|role| role.clone())
-        .ok_or_else(err)
+    roles.iter().find(find_by).cloned().ok_or_else(err)
 }
 
-pub fn update_config_if<
-    Condition: FnOnce(&Config) -> bool,
-    UpdateConfig: FnOnce(&mut Config) -> (),
->(
+pub fn update_config_if<Condition: FnOnce(&Config) -> bool, UpdateConfig: FnOnce(&mut Config)>(
     filename: &str,
     config: &mut Config,
     condition: Condition,
@@ -68,7 +63,7 @@ pub fn update_config_if<
     if condition(config) {
         update_config(config);
         println!("IN | CF | Re-creating config file.");
-        let mut file = File::create(&filename)?;
+        let mut file = File::create(filename)?;
         println!("IN | CF | Serializing updated config.");
         let config_string = serde_json::to_string_pretty(config)?;
         println!("IN | CF | Writing updated config to file.");

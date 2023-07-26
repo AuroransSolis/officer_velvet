@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use super::LeaderboardEntry;
 use anyhow::Result as AnyResult;
-use chrono::{Duration, Utc};
+use chrono::{Duration, Utc, DateTime};
 use serde::{Deserialize, Serialize};
 use serenity::{
     futures::StreamExt,
@@ -37,7 +37,10 @@ impl ScoringMethod {
                 let mut stream = channel.messages_iter(http).boxed_local();
                 while let Some(msg_result) = stream.next().await {
                     let msg = msg_result?;
-                    if Utc::now().signed_duration_since(msg.timestamp)
+                    let timestamp = msg.timestamp;
+                    let naive_dt = timestamp.naive_utc();
+                    let dt: DateTime<Utc> = DateTime::from_utc(naive_dt, Utc);
+                    if Utc::now().signed_duration_since(dt)
                         >= Duration::days(*within_days)
                         && !msg.mentions.is_empty()
                     {

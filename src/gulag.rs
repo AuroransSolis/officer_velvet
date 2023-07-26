@@ -5,31 +5,32 @@ use crate::{
 };
 use anyhow::Result as AnyResult;
 use chrono::prelude::*;
+use clap::{ColorChoice, Parser};
 use serenity::{
     client::Context,
     framework::standard::{macros::command, CommandResult},
     model::{channel::Message, id::UserId},
 };
 use std::time::Instant;
-use structopt::{clap::AppSettings, StructOpt};
 
-#[derive(Clone, Debug, StructOpt)]
-#[structopt(
+#[derive(Clone, Debug, Parser)]
+#[command(
     name = "Gulag",
     about = "Sends a user to gulag",
-    settings(&[AppSettings::ColorNever, AppSettings::NoBinaryName])
+    color(ColorChoice::Never),
+    no_binary_name(true)
 )]
 pub(crate) struct GulagApp {
-    #[structopt(short = "u", long = "user", name = "user_id")]
+    #[arg(short = 'u', long = "user", name = "user_id")]
     user_id: UserId,
-    #[structopt(flatten)]
+    #[command(flatten)]
     time_period: CreateTimePeriod,
 }
 
 fn try_get_gulag(s: &str) -> AnyResult<(UserId, DateTime<Utc>)> {
-    println!("GL | Parsing gulag command use from '{}'", s);
+    println!("GL | Parsing gulag command use from '{s}'");
     let trimmed = s.trim_start_matches("=>gulag").trim();
-    let arg_matches = GulagApp::from_iter_safe(trimmed.split_whitespace())?;
+    let arg_matches = GulagApp::try_parse_from(trimmed.split_whitespace())?;
     println!("GL | Successfully parsed usage.");
     let GulagApp {
         user_id,
@@ -48,7 +49,7 @@ pub async fn gulag(ctx: &Context, message: &Message) -> CommandResult {
     let context_data = ctx.data.read().await;
     let self_id = *context_data.get::<BotIdKey>().unwrap();
     println!("GL | Checking permissions.");
-    if is_administrator(&ctx.http, context_data, &message).await? {
+    if is_administrator(&ctx.http, context_data, message).await? {
         match try_get_gulag(message.content.as_str()) {
             Ok((user_id, end)) => {
                 if user_id != self_id {
@@ -135,33 +136,55 @@ pub async fn gulag(ctx: &Context, message: &Message) -> CommandResult {
                             .collect::<Vec<_>>();
                         println!("GL | Creating gulag entry.");
                         let gulag = Gulag::new(user, roles, end);
-                        println!("GL | Getting task sender.");
-                        let task_sender = context_data.get_mut::<TaskSenderKey>().unwrap();
-                        println!("GL | Sending task to main thread.");
-                        match task_sender.send(TaskType::Gulag(gulag)) {
-                            Ok(_) => Ok(()),
-                            Err(err) => {
-                                println!(
-                                    "GL | SN | Failed to send task to main thread. Notifying user."
-                                );
-                                let content = format!(
-                                    "Failed to send gulag task to task handler. Details:\n{}",
-                                    err
-                                );
-                                let _ = message.reply(&ctx.http, content.as_str()).await?;
-                                Err(err)
-                            }
-                        }?;
-                        println!("GL | SN | Successfully sent task to main thread.");
                         println!("GL | Getting gulag role ID.");
                         let gulag_id = context_data.get::<ConfigKey>().unwrap().prisoner_role_id;
                         println!("GL | Removing user's roles.");
-                        member.remove_roles(&ctx.http, &remove_list).await?;
+                        // member.remove_roles(&ctx.http, &remove_list).await?;
+                        let mut add_on_fail = Vec::with_capacity(remove_list.len());
+                        for &role in &remove_list {
+                            println!("GL | Removing role: {role}");
+                            if let Err(e) = member.remove_role(&ctx.http, role).await {
+                                println!("GL | Error: {e}");
+                            } else {
+                                add_on_fail.push(role);
+                            }
+                        }
                         println!("GL | Adding prisoner role.");
-                        ctx.http
-                            .add_member_role(guild_id.into(), user_id.into(), gulag_id.into())
-                            .await?;
-                        println!("GL | Successfully gulagged user.");
+                        let prisoner_result = ctx
+                            .http
+                            .add_member_role(
+                                guild_id.into(),
+                                user_id.into(),
+                                gulag_id.into(),
+                                Some("To gulag with this fool."),
+                            )
+                            .await;
+                        if let Err(e) = prisoner_result {
+                            println!("GL | Error assigning prisoner role: {e}");
+                            if let Err(e) = member.add_roles(&ctx.http, &add_on_fail).await {
+                                println!("CRITICAL: failed to add back roles {add_on_fail:?} to user ID {}. Error: {e}", member.user.id);
+                            }
+                        } else {
+                            println!("GL | Successfully gulagged user.");
+                            println!("GL | Getting task sender.");
+                            let task_sender = context_data.get_mut::<TaskSenderKey>().unwrap();
+                            println!("GL | Sending task to main thread.");
+                            match task_sender.send(TaskType::Gulag(gulag)) {
+                                Ok(_) => Ok(()),
+                                Err(err) => {
+                                    println!(
+                                        "GL | SN | Failed to send task to main thread. Notifying user."
+                                    );
+                                    let content = format!(
+                                        "Failed to send gulag task to task handler. Details:\n{}",
+                                        err
+                                    );
+                                    let _ = message.reply(&ctx.http, content.as_str()).await?;
+                                    Err(err)
+                                }
+                            }?;
+                            println!("GL | SN | Successfully sent task to main thread.");
+                        }
                     }
                 }
             }

@@ -2,6 +2,7 @@ use super::task::Task;
 use crate::misc::CreateTimePeriod;
 use anyhow::Result as AnyResult;
 use chrono::{prelude::*, Duration};
+use clap::{ColorChoice, Parser};
 use serde::{Deserialize, Serialize};
 use serenity::{
     http::client::Http,
@@ -11,7 +12,6 @@ use std::{
     io::{Error as IoError, ErrorKind},
     sync::Arc,
 };
-use structopt::{clap::AppSettings, StructOpt};
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct PeriodicTask {
@@ -49,28 +49,33 @@ impl PeriodicTask {
         }
         Ok(())
     }
+
+    pub fn list_fmt(&self) -> String {
+        format!(" PT | {} | Last: {}", self.task.list_fmt(), self.last_sent)
+    }
 }
 
-#[derive(Clone, Debug, StructOpt)]
-#[structopt(
+#[derive(Clone, Debug, Parser)]
+#[command(
     name = "Create Periodic Task",
-    settings(&[AppSettings::ColorNever, AppSettings::NoBinaryName]),
+    color(ColorChoice::Never),
+    no_binary_name(true)
 )]
 pub struct CreatePeriodicTask {
-    #[structopt(skip)]
+    #[arg(skip)]
     pub task: Task,
-    #[structopt(long = "start", name = "start_sending")]
+    #[arg(long = "start", name = "start_sending")]
     pub start: NaiveDateTime,
-    #[structopt(flatten)]
+    #[command(flatten)]
     pub duration: CreateTimePeriod,
 }
 
 impl CreatePeriodicTask {
-    pub fn create(self) -> AnyResult<PeriodicTask> {
-        Ok(PeriodicTask {
+    pub fn create(self) -> PeriodicTask {
+        PeriodicTask {
             task: self.task,
             diff: self.duration.to_duration().num_seconds(),
             last_sent: Utc::now().naive_utc(),
-        })
+        }
     }
 }

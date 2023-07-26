@@ -11,3 +11,5 @@
 - Bandboard leaderboard
 - Crak Day
 
+## Notes for me
+- Remove `#[command]` at some point, replace with slash commands

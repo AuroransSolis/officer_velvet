@@ -7,9 +7,10 @@ pub mod task;
 use crate::{
     cache_keys::TaskSenderKey,
     help::CREATE_TASK_HELP_MSG,
-    misc::{insufficient_perms, is_administrator},
+    misc::{insufficient_perms, is_administrator, ClapResult},
 };
 use anyhow::Result as AnyResult;
+use clap::{error::ErrorKind, ColorChoice, Parser, Subcommand};
 use date_conditional_task::DateConditionalTask;
 use gulag::Gulag;
 use lazy_static::lazy_static;
@@ -23,8 +24,7 @@ use serenity::{
     model::channel::Message,
     prelude::{RwLock, TypeMap},
 };
-use std::{sync::Arc, time::Instant};
-use structopt::{clap::AppSettings, StructOpt};
+use std::{ffi::OsString, sync::Arc, time::Instant};
 use task::Task;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -44,10 +44,7 @@ impl TaskType {
     }
 
     pub fn is_gulag(&self) -> bool {
-        match self {
-            TaskType::Gulag(_) => true,
-            _ => false,
-        }
+        matches!(self, TaskType::Gulag(_))
     }
 
     pub async fn act(
@@ -68,42 +65,71 @@ impl TaskType {
             _ => None,
         }
     }
+
+    pub fn gulag_mut(&mut self) -> Option<&mut Gulag> {
+        match self {
+            TaskType::Gulag(gulag) => Some(gulag),
+            _ => None,
+        }
+    }
+
+    pub fn list_fmt(&self) -> String {
+        match self {
+            TaskType::DateConditionalTask(dct) => dct.list_fmt(),
+            TaskType::Gulag(g) => g.list_fmt(),
+            TaskType::PeriodicTask(pt) => pt.list_fmt(),
+        }
+    }
 }
 
 lazy_static! {
-    static ref CTREGEX: Regex = Regex::new(r"=>create_task (.+)\n```json\n([\w\W]+)```").unwrap();
+    static ref CTREGEX: Regex = Regex::new(r"=>create_task (.+)(\n```json\n([.\n]+)```)?").unwrap();
 }
 
-#[derive(Clone, Debug, StructOpt)]
-#[structopt(
-    name = "Create Task",
-    settings(&[AppSettings::ColorNever, AppSettings::NoBinaryName]),
-)]
+#[derive(Parser)]
+#[command(color(ColorChoice::Never), no_binary_name(true))]
+pub struct CreateTask {
+    #[command(subcommand)]
+    cttype: CreateTaskType,
+}
+
+#[derive(Clone, Debug, Subcommand)]
 pub enum CreateTaskType {
-    #[structopt(name = "date_conditional_task")]
+    #[command(name = "date_conditional_task")]
     DateConditionalTask(DateConditionalTask),
-    #[structopt(name = "periodic_task")]
+    #[command(name = "periodic_task")]
     PeriodicTask(CreatePeriodicTask),
 }
 
 impl CreateTaskType {
-    pub fn create(self) -> AnyResult<TaskType> {
-        Ok(match self {
+    pub fn create(self) -> TaskType {
+        match self {
             CreateTaskType::DateConditionalTask(dct) => TaskType::DateConditionalTask(dct),
-            CreateTaskType::PeriodicTask(pt) => TaskType::PeriodicTask(pt.create()?),
-        })
+            CreateTaskType::PeriodicTask(pt) => TaskType::PeriodicTask(pt.create()),
+        }
     }
 }
 
-fn get_ctt_matches(msg: &str) -> Vec<(&str, &str)> {
+fn get_ctt_matches(msg: &str) -> Vec<Vec<&str>> {
     CTREGEX
         .captures_iter(msg)
-        .map(|caps| (caps.get(1).unwrap().as_str(), caps.get(2).unwrap().as_str()))
+        .map(|caps| {
+            caps.iter()
+                .skip(1)
+                .filter_map(|cap| cap.map(|cap| cap.as_str()))
+                .collect::<Vec<_>>()
+        })
         .collect::<Vec<_>>()
 }
 
-fn try_get_createtask(s: &str) -> AnyResult<CreateTaskType> {
-    CreateTaskType::from_iter_safe(s.trim().split_whitespace()).map_err(|e| e.into())
+fn try_get_createtask<I>(iter: I) -> ClapResult<CreateTaskType>
+where
+    I: Iterator,
+    <I as Iterator>::Item: Clone + Into<OsString>,
+{
+    CreateTask::try_parse_from(iter)
+        .map_err(Into::into)
+        .map(|ct| ct.cttype)
 }
 
 #[command]
@@ -112,92 +138,94 @@ pub async fn create_task(ctx: &Context, message: &Message) -> CommandResult {
     let start = Instant::now();
     if is_administrator(&ctx.http, ctx.data.read().await, message).await? {
         println!("CT | User has sufficient permissions. Trying to match subcommand.");
-        match &get_ctt_matches(message.content.as_str())[..] {
-            &[] => {
-                println!("CT | User didn't provide all arguments, or failed to match format.");
-                match message.content.to_lowercase().as_str() {
-                    "=>create_task -h" | "=>create_task --help" => {
-                        let msg = format!(
-                            "Error parsing command. Details:\n{}",
-                            CREATE_TASK_HELP_MSG.as_str()
-                        );
-                        message
-                            .channel_id
-                            .send_message(&ctx.http, |message| message.content(&msg))
-                            .await?;
-                        return Ok(());
-                    }
-                    _ => {
-                        message
-                            .reply(
-                                &ctx.http,
-                                "Aye, I'll be sure to do nothing.\n\
-                                \n\
-                                Sarcasm aside, I didn't find any tasks in that message. \
-                                Double-check your usage.",
-                            )
-                            .await?;
-                    }
+        let matches = get_ctt_matches(message.content.as_str());
+        println!("CT | Regex matches: {matches:?}");
+        if matches.is_empty() {
+            println!("CT | User didn't provide all arguments, or failed to match format.");
+            match message.content.to_lowercase().as_str() {
+                "=>create_task -h" | "=>create_task --help" => {
+                    let msg = format!(
+                        "Error parsing command. Details:\n{}",
+                        CREATE_TASK_HELP_MSG.as_str()
+                    );
+                    message
+                        .channel_id
+                        .send_message(&ctx.http, |message| message.content(&msg))
+                        .await?;
+                    return Ok(());
+                }
+                _ => {
+                    message
+                        .reply(
+                            &ctx.http,
+                            "Aye, I'll be sure to do nothing.\n\
+                            \n\
+                            Sarcasm aside, I didn't find any tasks in that message. \
+                            Double-check your usage.",
+                        )
+                        .await?;
                 }
             }
-            &[(subcommand, task)] => {
-                println!("CT | Valid user input. Subcommand: '{}'", subcommand);
-                let mut subcommand = match try_get_createtask(subcommand.trim()) {
-                    Ok(subcommand) => subcommand.create()?,
-                    Err(err) => {
-                        println!("CT | Failed to parse user input. Sending error back.");
-                        let msg = format!("Error parsing command. Details:\n```{}```", err);
-                        message
-                            .channel_id
-                            .send_message(&ctx.http, |message| message.content(&msg))
-                            .await?;
-                        return Ok(());
-                    }
-                };
-                println!("CT | PS | Successfully parsed task type input.");
-                let task = match serde_json::from_str::<Task>(task) {
-                    Ok(task) => task,
-                    Err(err) => {
-                        let msg = format!(
-                            "Failed to parse task from input. Error details:\n```{}```",
-                            err
-                        );
-                        message.reply(&ctx.http, msg.as_str()).await?;
-                        return Ok(());
-                    }
-                };
-                println!("CT | PS | Successfully parsed task input.");
-                match &mut subcommand {
-                    TaskType::DateConditionalTask(DateConditionalTask {
-                        task: default_task,
-                        ..
-                    })
-                    | TaskType::PeriodicTask(PeriodicTask {
-                        task: default_task, ..
-                    }) => {
-                        *default_task = task;
-                    }
-                    _ => unreachable!(),
+        } else if matches.len() == 1 {
+            println!("CT | Valid user input.");
+            let input = &matches[0];
+            println!("CT | Parsing input: {input:?}");
+            let mut subcommand = match try_get_createtask(input.iter()) {
+                Ok(subcommand) => subcommand.create(),
+                Err(err) if err.kind() == ErrorKind::DisplayHelp => {
+                    println!("CT | User requested help.");
+                    let msg = format!("```{err}```");
+                    message.reply(&ctx.http, msg).await?;
+                    println!("CT | Elapsed: {:?}", start.elapsed());
+                    return Ok(());
                 }
-                println!("CT | Assigned task to tasktype.");
-                &ctx.data
-                    .write()
-                    .await
-                    .get_mut::<TaskSenderKey>()
-                    .unwrap()
-                    .send(subcommand)?;
-                println!("CT | Sent task to executor.");
-            }
-            _ => {
-                println!("CT | User provided too many tasks.");
-                message
-                    .reply(
-                        &ctx.http,
-                        "Woah there, you can only throw so much at me. \
-                            I only accept new tasks one at a time.",
-                    )
-                    .await?;
-            }
+                Err(err) => {
+                    println!("CT | Failed to parse user input. Sending error back.");
+                    let msg = format!("Error parsing command. Details:\n```{err}```");
+                    message.reply(&ctx.http, msg).await?;
+                    println!("CT | Elapsed: {:?}", start.elapsed());
+                    return Err(err.into());
+                }
+            };
+            println!(
+                "CT | PS | Successfully parsed task type: {}",
+                subcommand.list_fmt()
+            );
+            // let task = match serde_json::from_str::<Task>(task) {
+            //     Ok(task) => task,
+            //     Err(err) => {
+            //         let msg = format!(
+            //             "Failed to parse task from input. Error details:\n```{}```",
+            //             err
+            //         );
+            //         message.reply(&ctx.http, msg.as_str()).await?;
+            //         return Ok(());
+            //     }
+            // };
+            // println!("CT | PS | Successfully parsed task input.");
+            // match &mut subcommand {
+            //     TaskType::DateConditionalTask(DateConditionalTask {
+            //         task: default_task,
+            //         ..
+            //     })
+            //     | TaskType::PeriodicTask(PeriodicTask {
+            //         task: default_task, ..
+            //     }) => {
+            //         *default_task = task;
+            //     }
+            //     TaskType::Gulag(_) => unreachable!(),
+            // }
+            // println!("CT | Assigned task to tasktype.");
+            // let _ = &ctx
+            //     .data
+            //     .write()
+            //     .await
+            //     .get_mut::<TaskSenderKey>()
+            //     .unwrap()
+            //     .send(subcommand)?;
+            // println!("CT | Sent task to executor.");
+        } else {
+            println!("CT | What the fuck: {matches:?}");
         }
     } else {
         println!("CT | User has insufficient permissions.");

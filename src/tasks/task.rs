@@ -83,13 +83,22 @@ impl Task {
         }
         Ok(())
     }
+
+    pub fn list_fmt(&self) -> &str {
+        match self {
+            Task::SendMessage { .. } => "   SEND",
+            Task::UpdateAppearance { .. } => "UPDATE",
+        }
+    }
 }
 
 impl Default for Task {
     fn default() -> Self {
         Task::SendMessage {
             send_to: 0.into(),
-            message: MessageType::Plain { content: "".into() },
+            message: MessageType::Plain {
+                content: String::new(),
+            },
             upload_file: None,
         }
     }

@@ -5,7 +5,7 @@ use crate::{
 use serenity::{
     async_trait,
     framework::standard::{macros::hook, CommandError},
-    model::channel::Message,
+    model::{channel::Message, prelude::Ready},
     prelude::*,
 };
 
@@ -24,18 +24,14 @@ impl EventHandler for Handler {
             let try_find_counter = tasks.iter_mut().find_map(|task_type| match task_type {
                 TaskType::PeriodicTask(task) => match &mut task.task {
                     Task::SendMessage { message, .. } => match message {
-                        MessageType::Embed {
-                            description,
-                            fields,
-                            ..
-                        } if description.as_ref().map(|s| s.as_str())
-                            == Some("Activity report") =>
+                        MessageType::Embed(msg)
+                            if msg.as_ref().description.as_deref() == Some("Activity report") =>
                         {
-                            fields.as_mut().unwrap().get_mut(0)
+                            msg.as_mut().fields.as_mut().unwrap().get_mut(0)
                         }
                         _ => None,
                     },
-                    _ => None,
+                    Task::UpdateAppearance { .. } => None,
                 },
                 _ => None,
             });
@@ -48,6 +44,10 @@ impl EventHandler for Handler {
                 counter.push_str(&format!("{}", current_count));
             }
         }
+    }
+
+    async fn ready(&self, _: Context, ready: Ready) {
+        println!("HD | Connected as user '{}'.", ready.user.name);
     }
 }
 

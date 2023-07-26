@@ -1,7 +1,12 @@
 use crate::cache_keys::ConfigKey;
 use anyhow::{anyhow, Result as AnyResult};
 use serde::{Deserialize, Serialize};
-use serenity::{client::Cache, http::{CacheHttp, Http}, model::id::{ChannelId, GuildId, RoleId, UserId}, prelude::{RwLock, TypeMap}};
+use serenity::{
+    client::Cache,
+    http::{CacheHttp, Http},
+    model::id::{ChannelId, GuildId, RoleId, UserId},
+    prelude::{RwLock, TypeMap},
+};
 use std::{sync::Arc, time::Duration};
 
 mod scoring_method;
@@ -42,11 +47,8 @@ impl Leaderboard {
             .collect();
         Ok(())
     }
- 
-    async fn award_winner(
-        &mut self,
-        cache_http: &impl CacheHttp,
-    ) -> AnyResult<()> {
+
+    async fn award_winner(&mut self, cache_http: &impl CacheHttp) -> AnyResult<()> {
         if let Some((role_name, role_id)) = &self.award {
             println!(
                 "LB | AW | Attempting to award role '{}' to user '{}' ({})",
@@ -54,22 +56,32 @@ impl Leaderboard {
             );
             let award_to = self.leaderboard[0].id;
             println!("LB | AW | Getting guild ID");
-            let guild_id = cache_http.cache().read().await.get::<ConfigKey>().unwrap().guild_id;
+            let guild_id = cache_http
+                .cache()
+                .read()
+                .await
+                .get::<ConfigKey>()
+                .unwrap()
+                .guild_id;
             if let Some(last) = self.last_given_to {
                 println!("LB | AW | No awards given previously.");
-                
             }
         }
         Ok(())
     }
 }
 
-async fn try_give_role(http: &impl AsRef<Http>, cache: &Arc<Cache>, guild: GuildId, user: UserId, role: RoleId) -> AnyResult<()> {
+async fn try_give_role(
+    http: &impl AsRef<Http>,
+    cache: &Arc<Cache>,
+    guild: GuildId,
+    user: UserId,
+    role: RoleId,
+) -> AnyResult<()> {
     let member = guild.member((cache, http.as_ref()), user).await?;
     if member.roles.contains(&role) {
         println!("LB | AW | User already has role ID {}", role);
         Ok(())
     } else {
-
     }
 }

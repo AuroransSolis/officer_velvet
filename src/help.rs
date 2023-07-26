@@ -1,29 +1,24 @@
+#![allow(clippy::unreadable_literal)]
+
 use crate::{
     gulag::GulagApp,
-    misc::{escape_formatting, is_administrator},
+    misc::{escape_formatting, get_help_msg, is_administrator},
+    release::ReleaseSearchCriteriumApp,
     tasks::{
         date_conditional_task::DateConditionalTask, message::MessageType,
-        periodic_task::CreatePeriodicTask, task::Task, CreateTaskType,
+        periodic_task::CreatePeriodicTask, task::Task, CreateTask,
     },
-    FOOTER_TEXT,
+    EMBED_COLOUR, FOOTER_TEXT,
 };
 use chrono::{Duration, Utc};
+use clap::CommandFactory;
 use lazy_static::lazy_static;
 use serenity::{
     client::Context,
     framework::standard::{macros::command, CommandResult},
     model::channel::Message,
-    utils::Colour,
 };
 use std::time::Instant;
-use structopt::{clap::App, StructOpt};
-
-fn get_help_msg(app: App) -> String {
-    let mut help_string = vec![b'`'; 3];
-    app.write_help(&mut help_string).unwrap();
-    help_string.extend_from_slice(&[b'`'; 3]);
-    String::from_utf8(help_string).unwrap()
-}
 
 lazy_static! {
     static ref HELP_HELP_MSG_NONADMIN: String = "\
@@ -43,13 +38,14 @@ lazy_static! {
         ",
         HELP_HELP_MSG_NONADMIN.as_str(),
     );
-    pub static ref GULAG_HELP_MSG: String = get_help_msg(GulagApp::clap());
+    pub static ref GULAG_HELP_MSG: String = get_help_msg(GulagApp::command());
     pub static ref CREATE_TASK_HELP_MSG: String = {
-        let mut string = get_help_msg(CreateTaskType::clap());
-        string.push_str(get_help_msg(DateConditionalTask::clap()).as_str());
-        string.push_str(get_help_msg(CreatePeriodicTask::clap()).as_str());
+        let mut string = get_help_msg(CreateTask::command());
+        string.push_str(get_help_msg(DateConditionalTask::command()).as_str());
+        string.push_str(get_help_msg(CreatePeriodicTask::command()).as_str());
         string
     };
+    pub static ref RELEASE_HELP_MSG: String = get_help_msg(ReleaseSearchCriteriumApp::command());
     pub static ref CREATE_TASK_EXAMPLE: String = {
         format!(
             "\
@@ -182,6 +178,23 @@ def_help_lists! {
             CREATE_TASK_HELP_MSG.clone(),
             CREATE_TASK_EXAMPLE.clone(),
         },
+        {
+            "release",
+            "Release a prisoner.",
+            RELEASE_HELP_MSG.clone(),
+            "\
+                `=>release --user @some_user`\n\
+                This releases the user @some_user from gulag.\n\n\
+                `=>release --index N`\n\
+                Searches through the task list and ends the `N`th gulag sentence.
+            ".into(),
+        },
+        {
+            "list_tasks",
+            "Lists the tasks currently in the list.",
+            "No arguments are expected. Should only be called as `=>list_tasks`.".into(),
+            String::new(),
+        },
     }
 }
 
@@ -206,10 +219,10 @@ pub async fn help(ctx: &Context, message: &Message) -> CommandResult {
                     embed
                         .title("Okay, fine...")
                         .description("...I guess I can help you with that.")
-                        .colour(Colour::from_rgb(243, 44, 115))
+                        .colour(EMBED_COLOUR)
                         .footer(|footer| footer.text(FOOTER_TEXT).icon_url(icon_url));
                     println!("HL | Constructed base embed.");
-                    if trimmed_content == "" {
+                    if trimmed_content.is_empty() {
                         println!("HL | User requested general help.");
                         embed.fields(help_list.iter().map(|[name, short_desc, ..]| {
                             (name.as_str(), short_desc.as_str(), false)
@@ -219,13 +232,10 @@ pub async fn help(ctx: &Context, message: &Message) -> CommandResult {
                         .find(|[name, ..]| name.as_str() == trimmed_content)
                     {
                         println!("HL | User requested help with '{}'", trimmed_content,);
-                        embed.fields(
-                            vec![
-                                ("Command information", long_help.as_str(), false),
-                                ("Usage", example.as_str(), false),
-                            ]
-                            .into_iter(),
-                        )
+                        embed.fields(vec![
+                            ("Command information", long_help.as_str(), false),
+                            ("Usage", example.as_str(), false),
+                        ])
                     } else {
                         println!("HL | User requested help for unknown command.");
                         embed.field(

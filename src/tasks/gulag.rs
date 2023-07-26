@@ -66,6 +66,13 @@ impl Gulag {
         );
         Ok(())
     }
+
+    pub fn list_fmt(&self) -> String {
+        format!(
+            "  G | User \"{}\" ({}) until {}",
+            self.user.0, self.user.1, self.end
+        )
+    }
 }
 
 impl Debug for Gulag {
@@ -77,7 +84,7 @@ impl Debug for Gulag {
         )?;
         writeln!(f, "    Roles to restore:")?;
         for (role_name, role_id) in &self.roles {
-            writeln!(f, "        - '{}' (ID: {})", role_name, role_id)?;
+            writeln!(f, "        - '{role_name}' (ID: {role_id})")?;
         }
         writeln!(f, "    End of sentence: {}", self.end)?;
         Ok(())
@@ -92,7 +99,7 @@ impl Display for Gulag {
             self.user.0,
             self.user.1,
             self.end.time().round_subsecs(0),
-            self.end.date()
+            self.end.date_naive()
         )
     }
 }

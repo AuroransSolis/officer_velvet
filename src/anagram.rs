@@ -13,7 +13,7 @@ pub async fn anagram(ctx: &Context, message: &Message) -> CommandResult {
     let start = Instant::now();
     let unscrambled = message.content.trim_start_matches("=>anagram").trim();
     println!("    Trimmed '=>anagram' from message.");
-    if unscrambled.len() == 0 {
+    if unscrambled.is_empty() {
         let _ = message
             .reply(
                 &ctx.http,
@@ -29,14 +29,7 @@ pub async fn anagram(ctx: &Context, message: &Message) -> CommandResult {
             .await?;
     } else {
         let first = unscrambled.chars().next().unwrap();
-        if !unscrambled.chars().any(|c| c != first) {
-            let _ = message
-                .reply(
-                    &ctx.http,
-                    "I am in awe of your incompetence if you need help scrambling that.",
-                )
-                .await?;
-        } else {
+        if unscrambled.chars().any(|c| c != first) {
             let mut scrambled = unscrambled.chars().collect::<Vec<char>>();
             println!("    Collected trimmed message into Vec<char>.");
             scrambled.shuffle(&mut thread_rng());
@@ -60,6 +53,13 @@ pub async fn anagram(ctx: &Context, message: &Message) -> CommandResult {
                 );
                 let _ = message.reply(&ctx.http, &reply).await?;
             }
+        } else {
+            let _ = message
+                .reply(
+                    &ctx.http,
+                    "I am in awe of your incompetence if you need help scrambling that.",
+                )
+                .await?;
         }
     }
     println!("    Sent reply.");

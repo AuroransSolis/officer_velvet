@@ -1,6 +1,7 @@
 use super::task::Task;
 use anyhow::Result as AnyResult;
 use chrono::prelude::*;
+use clap::{ColorChoice, Parser};
 use serde::{Deserialize, Serialize};
 use serenity::{
     http::client::Http,
@@ -8,10 +9,10 @@ use serenity::{
 };
 use std::{
     cmp::PartialEq,
+    fmt::Write,
     io::{Error as IoError, ErrorKind},
     sync::Arc,
 };
-use structopt::{clap::AppSettings, StructOpt};
 
 fn time_eq_to_secs(t1: NaiveTime, t2: NaiveTime) -> bool {
     t1.hour() == t2.hour() && t1.minute() == t2.minute() && t1.second() == t2.second()
@@ -28,33 +29,33 @@ fn parse_weekday(s: &str) -> AnyResult<Weekday> {
         "su" | "sun" | "sunday" => Ok(Weekday::Sun),
         _ => Err(IoError::new(
             ErrorKind::InvalidInput,
-            format!("Invalid weekday '{}'", s).as_str(),
+            format!("Invalid weekday '{s}'").as_str(),
         )
         .into()),
     }
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize, StructOpt)]
+#[derive(Clone, Debug, Deserialize, Serialize, Parser)]
 pub struct DateCondition {
-    #[structopt(short = "t", long = "time", name = "time")]
+    #[arg(short = 't', long = "time", name = "time")]
     pub time: Option<NaiveTime>,
-    #[structopt(
-        short = "w",
+    #[arg(
+        short = 'w',
         long = "weekday",
         name = "weekday",
         conflicts_with("day_of_month"),
-        parse(try_from_str = parse_weekday))
-    ]
+        value_parser = parse_weekday,
+    )]
     pub weekday: Option<Weekday>,
-    #[structopt(
-        short = "d",
+    #[arg(
+        short = 'd',
         long = "day_of_month",
         visible_alias("dom"),
         name = "day_of_month"
     )]
     pub day_of_month: Option<u32>,
-    #[structopt(
-        short = "m",
+    #[arg(
+        short = 'm',
         long = "month_of_year",
         visible_alias("moy"),
         name = "month_of_year"
@@ -64,36 +65,54 @@ pub struct DateCondition {
 
 impl<'a> PartialEq<DateTime<Utc>> for &'a DateCondition {
     fn eq(&self, other: &DateTime<Utc>) -> bool {
-        self.time
-            .map(|time| time_eq_to_secs(time, other.time()))
-            .map(|result| {
-                self.weekday
-                    .map(|weekday| weekday == other.weekday() && result)
-                    .unwrap_or(result)
-            })
-            .map(|result| {
-                self.day_of_month
-                    .map(|dom| dom == other.day() && result)
-                    .unwrap_or(result)
-            })
-            .map(|result| {
-                self.month_of_year
-                    .map(|moy| moy == other.month() && result)
-                    .unwrap_or(result)
-            })
-            .unwrap_or(false)
+        let time = self
+            .time
+            .map_or(true, |time| time_eq_to_secs(time, other.time()));
+        let wd = self.weekday.map_or(true, |wd| wd == other.weekday());
+        let dom = self.day_of_month.map_or(true, |dom| dom == other.day());
+        let moy = self.month_of_year.map_or(true, |moy| moy == other.month());
+        time && wd && dom && moy
     }
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize, StructOpt)]
-#[structopt(
+impl DateCondition {
+    pub fn list_fmt(&self) -> String {
+        let mut out = String::new();
+        if let Some(time) = self.time {
+            write!(out, "T {time} ").unwrap();
+        }
+        if let Some(wd) = self.weekday {
+            if !out.is_empty() {
+                out.push(' ');
+            }
+            write!(out, "WD {wd}").unwrap();
+        }
+        if let Some(dom) = self.day_of_month {
+            if !out.is_empty() {
+                out.push(' ');
+            }
+            write!(out, "DOM {dom}").unwrap();
+        }
+        if let Some(moy) = self.month_of_year {
+            if !out.is_empty() {
+                out.push(' ');
+            }
+            write!(out, "MOY {moy}").unwrap();
+        }
+        out
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, Parser)]
+#[command(
     name = "Date Conditional Task",
-    settings(&[AppSettings::ColorNever, AppSettings::NoBinaryName]),
+    color(ColorChoice::Never),
+    no_binary_name(true)
 )]
 pub struct DateConditionalTask {
-    #[structopt(skip)]
+    #[arg(skip)]
     pub task: Task,
-    #[structopt(flatten)]
+    #[command(flatten)]
     pub condition: DateCondition,
 }
 
@@ -104,5 +123,13 @@ impl DateConditionalTask {
 
     pub async fn act(&self, data: &Arc<RwLock<TypeMap>>, http: &impl AsRef<Http>) -> AnyResult<()> {
         self.task.act(data, http).await
+    }
+
+    pub fn list_fmt(&self) -> String {
+        format!(
+            "DCT | {} | {}",
+            self.task.list_fmt(),
+            self.condition.list_fmt(),
+        )
     }
 }

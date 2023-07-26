@@ -28,12 +28,10 @@ pub async fn current_gulags(ctx: &Context, message: &Message) -> CommandResult {
             .get::<TasksKey>()
             .unwrap()
             .iter()
-            .filter_map(|task_type| match task_type {
-                TaskType::Gulag(gulag) => Some(gulag),
-                _ => None,
-            })
-            .for_each(|gulag| {
-                msg.push_str(&gulag.to_string());
+            .filter_map(TaskType::gulag_ref)
+            .enumerate()
+            .for_each(|(i, gulag)| {
+                msg.push_str(&format!("{i}: {gulag}"));
                 msg.push('\n');
             });
         let msg = if msg.is_empty() {
