@@ -8,3 +8,5 @@ config.json
 tasks.json
 .vscode/
 files/
+core
+velvet.log
