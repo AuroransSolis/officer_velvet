@@ -31,7 +31,7 @@ impl EventHandler for Handler {
                         }
                         _ => None,
                     },
-                    Task::UpdateAppearance { .. } => None,
+                    _ => None,
                 },
                 _ => None,
             });

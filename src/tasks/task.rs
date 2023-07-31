@@ -21,6 +21,7 @@ pub enum Task {
         new_name: String,
         new_icon_filename: String,
     },
+    ResetAppearance,
 }
 
 impl Task {
@@ -70,10 +71,28 @@ impl Task {
                     .edit_nickname(guild_id.into(), Some(new_name.as_str()))
                     .await?;
                 let avatar_b64 = read_image(format!(
-                    "{}/{}",
+                    "{}/{new_icon_filename}",
                     files_dir.trim_end_matches('/'),
-                    new_icon_filename
                 ))?;
+                http.as_ref()
+                    .get_current_user()
+                    .await?
+                    .edit(&http, |user| user.avatar(Some(&avatar_b64)))
+                    .await?;
+            }
+            Task::ResetAppearance => {
+                let (guild_id, files_dir, filename) = {
+                    let context = data.read().await;
+                    let config = context.get::<ConfigKey>().unwrap();
+                    (
+                        config.guild_id,
+                        config.files_dir.clone(),
+                        config.icon_filename.clone(),
+                    )
+                };
+                http.as_ref().edit_nickname(guild_id.into(), None).await?;
+                let avatar_b64 =
+                    read_image(format!("{}/{filename}", files_dir.trim_end_matches('/'),))?;
                 http.as_ref()
                     .get_current_user()
                     .await?
@@ -86,8 +105,9 @@ impl Task {
 
     pub fn list_fmt(&self) -> &str {
         match self {
-            Task::SendMessage { .. } => "   SEND",
+            Task::SendMessage { .. } => "  SEND",
             Task::UpdateAppearance { .. } => "UPDATE",
+            Task::ResetAppearance => " RESET",
         }
     }
 }

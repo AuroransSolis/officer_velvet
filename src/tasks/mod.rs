@@ -83,7 +83,8 @@ impl TaskType {
 }
 
 lazy_static! {
-    static ref CTREGEX: Regex = Regex::new(r"=>create_task (.+)(\n```json\n([.\n]+)```)?").unwrap();
+    static ref CTREGEX: Regex =
+        Regex::new(r"=>create_task (.+)(\n\`\`\`json\n(.+\n)+\`\`\`)?").unwrap();
 }
 
 #[derive(Parser)]
@@ -94,6 +95,7 @@ pub struct CreateTask {
 }
 
 #[derive(Clone, Debug, Subcommand)]
+#[command(color(ColorChoice::Never), no_binary_name(true))]
 pub enum CreateTaskType {
     #[command(name = "date_conditional_task")]
     DateConditionalTask(DateConditionalTask),
@@ -110,14 +112,14 @@ impl CreateTaskType {
     }
 }
 
-fn get_ctt_matches(msg: &str) -> Vec<Vec<&str>> {
+fn get_ctt_matches(msg: &str) -> Vec<(&str, &str)> {
     CTREGEX
         .captures_iter(msg)
         .map(|caps| {
-            caps.iter()
-                .skip(1)
-                .filter_map(|cap| cap.map(|cap| cap.as_str()))
-                .collect::<Vec<_>>()
+            (
+                caps.get(1).map(|cap| cap.as_str()).unwrap_or(""),
+                caps.get(3).map(|cap| cap.as_str()).unwrap_or(""),
+            )
         })
         .collect::<Vec<_>>()
 }
@@ -167,10 +169,10 @@ pub async fn create_task(ctx: &Context, message: &Message) -> CommandResult {
                 }
             }
         } else if matches.len() == 1 {
-            println!("CT | Valid user input.");
-            let input = &matches[0];
-            println!("CT | Parsing input: {input:?}");
-            let mut subcommand = match try_get_createtask(input.iter()) {
+            println!("CT | User input matched regex once.");
+            let (subcommand_inv, json) = matches[0];
+            println!("CT | Parsing input: {subcommand_inv:?}");
+            let mut subcommand = match try_get_createtask(subcommand_inv.split_whitespace()) {
                 Ok(subcommand) => subcommand.create(),
                 Err(err) if err.kind() == ErrorKind::DisplayHelp => {
                     println!("CT | User requested help.");
@@ -191,39 +193,43 @@ pub async fn create_task(ctx: &Context, message: &Message) -> CommandResult {
                 "CT | PS | Successfully parsed task type: {}",
                 subcommand.list_fmt()
             );
-            // let task = match serde_json::from_str::<Task>(task) {
-            //     Ok(task) => task,
-            //     Err(err) => {
-            //         let msg = format!(
-            //             "Failed to parse task from input. Error details:\n```{}```",
-            //             err
-            //         );
-            //         message.reply(&ctx.http, msg.as_str()).await?;
-            //         return Ok(());
-            //     }
-            // };
-            // println!("CT | PS | Successfully parsed task input.");
-            // match &mut subcommand {
-            //     TaskType::DateConditionalTask(DateConditionalTask {
-            //         task: default_task,
-            //         ..
-            //     })
-            //     | TaskType::PeriodicTask(PeriodicTask {
-            //         task: default_task, ..
-            //     }) => {
-            //         *default_task = task;
-            //     }
-            //     TaskType::Gulag(_) => unreachable!(),
-            // }
-            // println!("CT | Assigned task to tasktype.");
-            // let _ = &ctx
-            //     .data
-            //     .write()
-            //     .await
-            //     .get_mut::<TaskSenderKey>()
-            //     .unwrap()
-            //     .send(subcommand)?;
-            // println!("CT | Sent task to executor.");
+            let task = match serde_json::from_str::<Task>(json) {
+                Ok(task) => task,
+                Err(err) => {
+                    println!("CT | Failed to parse JSON into task.");
+                    message
+                        .reply(
+                            &ctx.http,
+                            &format!(
+                                "Failed to parse task from input. Error details:\n```{err}```",
+                            ),
+                        )
+                        .await?;
+                    println!("CT | Elapsed: {:?}", start.elapsed());
+                    return Err(err.into());
+                }
+            };
+            println!("CT | PS | Successfully parsed task JSON.");
+            match &mut subcommand {
+                TaskType::DateConditionalTask(DateConditionalTask {
+                    task: default_task, ..
+                })
+                | TaskType::PeriodicTask(PeriodicTask {
+                    task: default_task, ..
+                }) => {
+                    *default_task = task;
+                }
+                TaskType::Gulag(_) => unreachable!(),
+            }
+            println!("CT | Assigned task to tasktype.");
+            let _ = &ctx
+                .data
+                .write()
+                .await
+                .get_mut::<TaskSenderKey>()
+                .unwrap()
+                .send(subcommand)?;
+            println!("CT | Sent task to executor.");
         } else {
             println!("CT | What the fuck: {matches:?}");
         }
