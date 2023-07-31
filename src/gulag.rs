@@ -9,7 +9,7 @@ use clap::{ColorChoice, Parser};
 use serenity::{
     client::Context,
     framework::standard::{macros::command, CommandResult},
-    model::{channel::Message, id::UserId},
+    model::{channel::Message, id::UserId, prelude::MessageReference},
 };
 use std::time::Instant;
 
@@ -41,6 +41,7 @@ fn try_get_gulag(s: &str) -> AnyResult<(UserId, DateTime<Utc>)> {
     Ok((user_id, end))
 }
 
+#[allow(clippy::unreadable_literal)]
 #[command]
 pub async fn gulag(ctx: &Context, message: &Message) -> CommandResult {
     println!("GL | Start handling gulag command.");
@@ -52,7 +53,18 @@ pub async fn gulag(ctx: &Context, message: &Message) -> CommandResult {
     if is_administrator(&ctx.http, context_data, message).await? {
         match try_get_gulag(message.content.as_str()) {
             Ok((user_id, end)) => {
-                if user_id != self_id {
+                if user_id == self_id {
+                    let mr: MessageReference = message.into();
+                    message
+                        .channel_id
+                        .send_message(&ctx.http, |m| {
+                            m.content("Haha. Very funny.")
+                                .sticker_id(988793966281498704)
+                                .reference_message(mr)
+                                .allowed_mentions(|f| f.replied_user(false))
+                        })
+                        .await?;
+                } else {
                     println!("GL | Getting write lock on context data.");
                     let mut context_data = ctx.data.write().await;
                     println!("GL | Getting tasks list.");
@@ -177,8 +189,6 @@ pub async fn gulag(ctx: &Context, message: &Message) -> CommandResult {
                         }?;
                         println!("GL | SN | Successfully sent task to main thread.");
                     }
-                } else {
-                    message.reply(&ctx.http, "Haha. Very funny.").await?;
                 }
             }
             Err(err) => {
