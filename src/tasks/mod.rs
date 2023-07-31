@@ -117,8 +117,8 @@ fn get_ctt_matches(msg: &str) -> Vec<(&str, &str)> {
         .captures_iter(msg)
         .map(|caps| {
             (
-                caps.get(1).map(|cap| cap.as_str()).unwrap_or(""),
-                caps.get(3).map(|cap| cap.as_str()).unwrap_or(""),
+                caps.get(1).map_or("", |cap| cap.as_str()),
+                caps.get(3).map_or("", |cap| cap.as_str()),
             )
         })
         .collect::<Vec<_>>()
