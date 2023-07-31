@@ -95,11 +95,10 @@ impl Display for Gulag {
     fn fmt(&self, f: &mut fmt::Formatter) -> FmtResult {
         writeln!(
             f,
-            "{} (ID: {}), release at {} on {}",
+            "{} (ID: {}), release at <t:{end}> (<t:{end}:R>)",
             self.user.0,
             self.user.1,
-            self.end.time().round_subsecs(0),
-            self.end.date_naive()
+            end = self.end.timestamp(),
         )
     }
 }
