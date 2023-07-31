@@ -161,37 +161,37 @@ async fn main() -> AnyResult<()> {
     client.data.write().await.insert::<NitroRoleKey>(nitro_role);
     println!("IN | Cached Nitro role.");
     // Find all the roles allowed permission to use all commands and cache them as well.
-    let elevated_roles = guild_roles
+    let admin_roles = guild_roles
         .iter()
         .filter(|&role1| {
             config
-                .elevated_roles
+                .admin_roles
                 .iter()
                 .any(|role2| role1.id == role2.1 || role1.name == role2.0)
         })
         .cloned()
         .collect::<Vec<_>>();
-    println!("IN | Found elevated roles.");
+    println!("IN | Found admin_roles.");
     println!("IN | Checking whether it is necessary to update elevated role names or IDs");
     // Update role name and/or ID for each role in config if necessary, and write out to file.
     update_config_if(
         &config_file_path,
         &mut config,
         |config| {
-            elevated_roles.iter().any(|role| {
+            admin_roles.iter().any(|role| {
                 config
-                    .elevated_roles
+                    .admin_roles
                     .iter()
                     .any(|(name, id)| (name != role.name.as_str()) ^ (*id != role.id))
             })
         },
         |config| {
-            for role in &elevated_roles {
+            for role in &admin_roles {
                 println!(
                     "IN | CF | Checking config values for role '{}' (ID {})",
                     role.name, role.id
                 );
-                for (name, id) in &mut config.elevated_roles {
+                for (name, id) in &mut config.admin_roles {
                     let matching_ids = *id == role.id;
                     let matching_names = name == role.name.as_str();
                     if !matching_ids & matching_names {
@@ -208,12 +208,28 @@ async fn main() -> AnyResult<()> {
             }
         },
     )?;
-    // Cache elevated roles.
+    // Cache admin_roles.
     client
         .data
         .write()
         .await
-        .insert::<ElevatedRolesKey>(elevated_roles);
+        .insert::<AdminRolesKey>(admin_roles);
+    // Find roles in the server that are higher than this user's.
+    let my_position = guild_roles
+        .iter()
+        .find(|role| role.id == config.bot_role_id)
+        .unwrap()
+        .position;
+    let higher_roles = guild_roles
+        .iter()
+        .filter(|role| role.position >= my_position)
+        .cloned()
+        .collect::<Vec<_>>();
+    client
+        .data
+        .write()
+        .await
+        .insert::<HigherRolesKey>(higher_roles);
     // Cache the config.
     client.data.write().await.insert::<ConfigKey>(config);
     // Cache the tasks - they may need to be updated depending on role changes and such.

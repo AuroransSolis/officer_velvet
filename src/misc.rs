@@ -38,7 +38,7 @@ pub async fn is_administrator(
     Ok(context_data
         .get::<ConfigKey>()
         .unwrap()
-        .elevated_roles
+        .admin_roles
         .iter()
         .any(|(_, role_id)| user_roles.contains(role_id)))
 }

@@ -5,6 +5,12 @@ use serenity::{
     prelude::*,
 };
 
+pub struct AdminRolesKey;
+
+impl TypeMapKey for AdminRolesKey {
+    type Value = Vec<Role>;
+}
+
 pub struct BotIdKey;
 
 impl TypeMapKey for BotIdKey {
@@ -17,16 +23,16 @@ impl TypeMapKey for ConfigKey {
     type Value = Config;
 }
 
-pub struct ElevatedRolesKey;
-
-impl TypeMapKey for ElevatedRolesKey {
-    type Value = Vec<Role>;
-}
-
 pub struct GulagRoleKey;
 
 impl TypeMapKey for GulagRoleKey {
     type Value = Role;
+}
+
+pub struct HigherRolesKey;
+
+impl TypeMapKey for HigherRolesKey {
+    type Value = Vec<Role>;
 }
 
 pub struct NitroRoleKey;

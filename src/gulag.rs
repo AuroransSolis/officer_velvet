@@ -1,5 +1,5 @@
 use crate::{
-    cache_keys::{BotIdKey, ConfigKey, NitroRoleKey, TaskSenderKey, TasksKey},
+    cache_keys::{BotIdKey, ConfigKey, HigherRolesKey, NitroRoleKey, TaskSenderKey, TasksKey},
     misc::{insufficient_perms, is_administrator, CreateTimePeriod},
     tasks::{gulag::Gulag, TaskType},
 };
@@ -115,10 +115,18 @@ pub async fn gulag(ctx: &Context, message: &Message) -> CommandResult {
                         let mut roles_map = guild.roles;
                         println!("GL | Removing Nitro role ID from ID => role map.");
                         let _ = roles_map.remove(&nitro_role_id);
-                        println!("GL | Removing elevated roles from ID => role map.");
-                        config.elevated_roles.iter().for_each(|(_, role_id)| {
+                        println!("GL | Removing admin_roles from ID => role map.");
+                        config.admin_roles.iter().for_each(|(_, role_id)| {
                             let _ = roles_map.remove(role_id);
                         });
+                        println!("GL | Removing higher_roles from ID => role map.");
+                        context_data
+                            .get::<HigherRolesKey>()
+                            .unwrap()
+                            .iter()
+                            .for_each(|role| {
+                                let _ = roles_map.remove(&role.id);
+                            });
                         println!("GL | Mapping role IDs to role names.");
                         let roles = member
                             .roles
@@ -139,53 +147,38 @@ pub async fn gulag(ctx: &Context, message: &Message) -> CommandResult {
                         println!("GL | Getting gulag role ID.");
                         let gulag_id = context_data.get::<ConfigKey>().unwrap().prisoner_role_id;
                         println!("GL | Removing user's roles.");
-                        // member.remove_roles(&ctx.http, &remove_list).await?;
-                        let mut add_on_fail = Vec::with_capacity(remove_list.len());
-                        for &role in &remove_list {
-                            println!("GL | Removing role: {role}");
-                            if let Err(e) = member.remove_role(&ctx.http, role).await {
-                                println!("GL | Error: {e}");
-                            } else {
-                                add_on_fail.push(role);
-                            }
-                        }
+                        member.remove_roles(&ctx.http, &remove_list).await?;
                         println!("GL | Adding prisoner role.");
-                        let prisoner_result = ctx
-                            .http
+                        ctx.http
                             .add_member_role(
                                 guild_id.into(),
                                 user_id.into(),
                                 gulag_id.into(),
                                 Some("To gulag with this fool."),
                             )
-                            .await;
-                        if let Err(e) = prisoner_result {
-                            println!("GL | Error assigning prisoner role: {e}");
-                            if let Err(e) = member.add_roles(&ctx.http, &add_on_fail).await {
-                                println!("CRITICAL: failed to add back roles {add_on_fail:?} to user ID {}. Error: {e}", member.user.id);
+                            .await?;
+                        println!("GL | Successfully gulagged user.");
+                        println!("GL | Getting task sender.");
+                        let task_sender = context_data.get_mut::<TaskSenderKey>().unwrap();
+                        println!("GL | Sending task to main thread.");
+                        match task_sender.send(TaskType::Gulag(gulag)) {
+                            Ok(_) => Ok(()),
+                            Err(err) => {
+                                println!(
+                                    "GL | SN | Failed to send task to main thread. Notifying user."
+                                );
+                                let content = format!(
+                                    "Failed to send gulag task to task handler. Details:\n{}",
+                                    err
+                                );
+                                let _ = message.reply(&ctx.http, content.as_str()).await?;
+                                Err(err)
                             }
-                        } else {
-                            println!("GL | Successfully gulagged user.");
-                            println!("GL | Getting task sender.");
-                            let task_sender = context_data.get_mut::<TaskSenderKey>().unwrap();
-                            println!("GL | Sending task to main thread.");
-                            match task_sender.send(TaskType::Gulag(gulag)) {
-                                Ok(_) => Ok(()),
-                                Err(err) => {
-                                    println!(
-                                        "GL | SN | Failed to send task to main thread. Notifying user."
-                                    );
-                                    let content = format!(
-                                        "Failed to send gulag task to task handler. Details:\n{}",
-                                        err
-                                    );
-                                    let _ = message.reply(&ctx.http, content.as_str()).await?;
-                                    Err(err)
-                                }
-                            }?;
-                            println!("GL | SN | Successfully sent task to main thread.");
-                        }
+                        }?;
+                        println!("GL | SN | Successfully sent task to main thread.");
                     }
+                } else {
+                    message.reply(&ctx.http, "Haha. Very funny.").await?;
                 }
             }
             Err(err) => {
