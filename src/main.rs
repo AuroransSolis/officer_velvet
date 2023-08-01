@@ -278,7 +278,7 @@ async fn start_task_handler(
         }
         // Check whether any current tasks need to be executed.
         for i in (0..tasks.len()).rev() {
-            println!("TL | {}", tasks[i].list_fmt().trim());
+            // println!("TL | {}", tasks[i].list_fmt().trim());
             if tasks[i].time_to_act() {
                 if let Err(e) = tasks[i].act(&data, &http).await {
                     println!("TL | error: {e}");
